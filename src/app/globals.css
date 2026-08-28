@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   MOSES - Grundlagen
+   "Und Gott sprach: Es werde Licht." (falscher Bibelvers, richtige Idee)
+   ------------------------------------------------------------------ */
+
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-sand-100 text-tafel-900 antialiased;
+  background-image:
+    radial-gradient(1200px 500px at 50% -10%, rgba(253, 199, 18, 0.18), transparent 60%),
+    radial-gradient(900px 420px at 10% 110%, rgba(53, 186, 217, 0.12), transparent 60%);
+  background-attachment: fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    @apply bg-tafel-950 text-sand-100;
+    background-image:
+      radial-gradient(1200px 500px at 50% -10%, rgba(251, 87, 15, 0.16), transparent 60%),
+      radial-gradient(900px 420px at 10% 110%, rgba(25, 157, 191, 0.12), transparent 60%);
+  }
+}
+
+/* Fokus bleibt immer sichtbar - Barrierefreiheit ist auch ein Gebot. */
+:focus-visible {
+  @apply outline-none ring-2 ring-meer-500 ring-offset-2 ring-offset-sand-100;
+}
+@media (prefers-color-scheme: dark) {
+  :focus-visible {
+    @apply ring-offset-tafel-950;
+  }
+}
+
+@layer components {
+  /* Eine Steintafel: die Grundkarte der ganzen App. */
+  .tafel {
+    @apply rounded-2xl border border-sand-300/70 bg-sand-50/90 shadow-tafel backdrop-blur-sm;
+  }
+  .dark-tafel {
+    @apply dark:border-tafel-700/70 dark:bg-tafel-900/80;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+           transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-meer {
+    @apply btn bg-meer-700 text-white hover:bg-meer-800 dark:bg-meer-600 dark:hover:bg-meer-500;
+  }
+  .btn-flamme {
+    @apply btn bg-flamme-600 text-white hover:bg-flamme-700;
+  }
+  .btn-still {
+    @apply btn border border-sand-300 bg-sand-50 text-tafel-700 hover:bg-sand-200
+           dark:border-tafel-700 dark:bg-tafel-800 dark:text-sand-200 dark:hover:bg-tafel-700;
+  }
+
+  .feld {
+    @apply w-full rounded-xl border border-sand-300 bg-white px-3.5 py-2.5 text-base text-tafel-900
+           placeholder:text-tafel-400 focus:border-meer-500
+           dark:border-tafel-700 dark:bg-tafel-900 dark:text-sand-100 dark:placeholder:text-tafel-500;
+  }
+
+  .ueberschrift {
+    @apply font-serif text-lg font-semibold tracking-tight text-tafel-900 dark:text-sand-100;
+  }
+
+  .fluester {
+    @apply text-xs text-tafel-500 dark:text-tafel-400;
+  }
+}
+
+/* Der Dornbusch brennt, aber verbrennt nicht. (Ex 3,2) */
+.dornbusch-flamme {
+  filter: drop-shadow(0 0 12px rgba(251, 87, 15, 0.55));
+}
+
+/* Waagrechtes Scrollen der Wochentabelle ohne Ruckeln. */
+.wanderung-scroll {
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media print {
+  .kein-druck { display: none !important; }
+  body { background: white !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
