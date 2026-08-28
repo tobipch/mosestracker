@@ -41,6 +41,13 @@ export default async function Dornbusch({
               <code className="mx-1 rounded bg-kalb-200/70 px-1 font-mono text-xs dark:bg-kalb-900">MOSES_PASSWORT_HASH</code>
               hinterlegen (erzeugen mit <code className="font-mono text-xs">npm run steintafel</code>).
               Bis dahin kommt niemand hinein – auch du nicht.
+              <br />
+              <span className="mt-1.5 block text-[13px]">
+                Schon gesetzt und trotzdem diese Meldung? Dann fehlt nur der <strong>Redeploy</strong> –
+                neue Umgebungsvariablen wirken erst in einem neuen Deployment, nicht rückwirkend im
+                laufenden. Und die Variable braucht ein Häkchen bei der Umgebung, die du gerade
+                aufrufst (Production bzw. Preview).
+              </span>
             </p>
           )}
 
