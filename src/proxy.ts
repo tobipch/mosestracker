@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 const BUND_COOKIE = 'moses_bund';
 // Oeffentlich erreichbar: Anmeldung, Kurzanleitung und der Cron-Endpunkt
 // (der authentifiziert sich mit CRON_SECRET statt mit einem Cookie).
-const OEFFENTLICH = ['/dornbusch', '/gebote', '/api/sabbat'];
+const OEFFENTLICH = ['/dornbusch', '/gebote', '/api/manna'];
 
 export default function proxy(anfrage: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');

@@ -1,143 +1,158 @@
 import Link from 'next/link';
 import Kopf from '@/components/Kopf';
 import { imBund } from '@/lib/session';
-import { APP_NAME, APP_LANG, BEREICHE, STATUS, STATUS_ZYKLUS } from '@/lib/moses';
-import { kalenderwoche, naechsterSabbat, MANNA_TAGE } from '@/lib/zeit';
+import { APP_NAME, APP_LANG, BEREICHE, ZELLE, WOCHE } from '@/lib/moses';
+import { MANNA_TAGE, TAGE_KURZ, WERKTAGE_STANDARD } from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: BEREICHE.gebote.titel };
 
+const standard = `${TAGE_KURZ[WERKTAGE_STANDARD[0]]}–${TAGE_KURZ[WERKTAGE_STANDARD[WERKTAGE_STANDARD.length - 1]]}`;
+
 const GEBOTE: { titel: string; text: string }[] = [
   {
-    titel: 'Du sollst am Montagmorgen dein Volk sammeln.',
-    text: 'Namen ins Badge-Feld tippen, Enter drücken, «Ins Lager rufen». Ganze Listen aus Mail oder Excel dürfen direkt hineinkopiert werden – Komma, Semikolon und Zeilenumbruch trennen automatisch.',
+    titel: 'Du sollst dein Volk einmal mustern.',
+    text: `Unter «Musterung» stehen alle Personen – eine zentrale Liste, die für jede Kalenderwoche gilt. Namen ins Badge-Feld, Enter, «Ins Lager rufen». Ganze Listen aus Mail oder Excel dürfen direkt hinein: Komma, Semikolon und Zeilenumbruch trennen automatisch.`,
   },
   {
-    titel: 'Du sollst die Baustelle dazuschreiben.',
-    text: 'Entweder für alle auf einmal im Feld darunter, oder pro Person mit «Name @Baustelle». Die Tafel gruppiert danach, damit du pro Einsatzort lesen kannst.',
+    titel: 'Du sollst die Werktage setzen.',
+    text: `Jede Person startet mit ${standard}. Ein Klick auf ${TAGE_KURZ.join(', ')} schaltet den Tag um. Nicht-Werktage bleiben in der Wochentafel leer.`,
   },
   {
-    titel: 'Du sollst nur erfassen, was du brauchst.',
-    text: 'Name, Baustelle, sieben Tageszeichen, eine kurze Notiz. Keine Geburtsdaten, keine AHV-Nummern, keine Adressen. Was nicht erfasst wird, kann auch nicht verloren gehen.',
+    titel: 'Du sollst jederzeit aufnehmen und tilgen dürfen.',
+    text: 'Die Liste ist immer änderbar. Wird eine Person getilgt, verschwinden alle ihre Wochendaten mit ihr – restlos, in jeder Woche.',
   },
   {
-    titel: 'Du sollst abhaken, was der Rapport bestätigt.',
-    text: 'Ein Klick auf eine Zelle schaltet weiter. Wer die ganze Woche gearbeitet hat, bekommt mit «✓✓» in einem Griff sieben Haken. Kommt der Wochenrapport am Stück, setzt «alle ✓» in der Spaltenüberschrift den ganzen Tag.',
+    titel: 'Du sollst annehmen, dass alle da waren.',
+    text: 'Jeder Werktag ist grün, ohne dass du etwas tust. Nur Abweichungen kostet dich Klicks – und Abweichungen sind die Ausnahme.',
   },
   {
-    titel: 'Du sollst das goldene Kalb beim Namen nennen.',
-    text: 'Wer ohne Abmeldung nicht erschienen ist, bekommt 🐂. Genau diese Fälle gehen sonst unter, weil im Rapport schlicht keine Stunden stehen.',
+    titel: 'Du sollst mit einem Klick weiterschalten.',
+    text: 'Grün → orange (entschuldigt) → rot (unentschuldigt) → wieder grün. Auch leere Felder lassen sich anklicken, falls jemand an einem freien Tag hätte einspringen sollen.',
   },
   {
-    titel: 'Du sollst der Rauchsäule folgen.',
-    text: 'Ganz oben steht, bei wem eine Rückfrage fällig ist – unentschuldigtes Fehlen zuerst, danach vergangene Tage ganz ohne Meldung. Mit «Liste kopieren» wandert alles fixfertig in Mail oder WhatsApp.',
+    titel: 'Du sollst den Punkt vor dem Namen lesen.',
+    text: 'Er fasst die Woche zusammen: grün = durchgehend anwesend, orange = mindestens eine entschuldigte Absenz, rot = mindestens eine unentschuldigte. Eine rote Zeile ist die, um die es geht.',
   },
   {
-    titel: 'Du sollst den Auszug nehmen, wenn du Zahlen brauchst.',
-    text: 'Der Knopf «Auszug» lädt die Woche als CSV herunter, semikolongetrennt für Excel. Danach lebt die Datei bei dir – nicht mehr hier.',
+    titel: 'Du sollst abhaken, was eingegangen ist.',
+    text: 'Kommt ein Rapport, setzt du links das Häkchen. Die Zeile wird blass und rutscht ans Ende. Was oben stehen bleibt, ist deine Arbeitsliste – genau die Handvoll, bei der noch etwas fehlt.',
   },
   {
-    titel: 'Du sollst den Sabbat heiligen.',
-    text: 'Jeden Sonntag um 20:00 (Schweizer Zeit) leert sich die Liste von selbst. Fällt der Cron-Job einmal aus, holt die App den Reset beim nächsten Aufruf nach. Du musst dafür nichts tun.',
+    titel: 'Du sollst zurückblicken dürfen.',
+    text: 'Mit «Vorige Etappe» springst du in die letzte Kalenderwoche – dort machst du in der Regel die Kontrolle. «Zur laufenden Woche» bringt dich zurück. Weiter zurück geht es nicht, weil dort nichts mehr liegt.',
   },
   {
-    titel: 'Du sollst die Tafeln zerbrechen dürfen.',
-    text: 'Der rote Knopf löscht sofort alles – aber erst, nachdem du SINAI getippt hast. Zwei Schritte, damit es nie aus Versehen passiert.',
+    titel: 'Du sollst dich am heutigen Tag orientieren.',
+    text: 'In der laufenden Woche ist die Spalte des heutigen Tages leicht blau hinterlegt und mit einem Punkt markiert.',
   },
   {
     titel: 'Du sollst kein Manna horten.',
-    text: `Nichts bleibt länger als ${MANNA_TAGE} Tage gespeichert. Ältere Einträge werden bei jedem Aufruf und einmal täglich per Cron gelöscht – ohne Papierkorb, ohne Archiv, ohne Backup-Kopie in der App.`,
+    text: `Wochendaten verfallen nach ${MANNA_TAGE} Tagen und werden endgültig gelöscht – bei jedem Aufruf und einmal täglich per Cron. Die Personenliste selbst bleibt, sie gehört dir.`,
   },
 ];
 
 const BUNDESLADE: { titel: string; text: string }[] = [
   {
     titel: 'Ein Losungswort, sicher verwahrt',
-    text: 'Das Passwort steht nirgends im Klartext: gespeichert wird ein scrypt-Hash in einer Umgebungsvariablen. Verglichen wird zeitkonstant, damit sich das Passwort nicht Zeichen für Zeichen erraten lässt.',
+    text: 'Das Passwort steht nirgends im Klartext: gespeichert wird ein scrypt-Hash in einer Umgebungsvariablen, verglichen wird zeitkonstant.',
   },
   {
     titel: 'Wache am Lagertor',
-    text: 'Nach fünf Fehlversuchen ist für 15 Minuten Schluss. Gezählt wird pro Absender – gespeichert wird dabei nur ein gesalzener Hash der IP-Adresse, der nach 24 Stunden verschwindet.',
+    text: 'Nach fünf Fehlversuchen ist für 15 Minuten Schluss. Gezählt wird über einen gesalzenen Hash der IP-Adresse, der nach 24 Stunden verschwindet.',
   },
   {
     titel: 'Sitzung mit Ablaufdatum',
-    text: 'Die Anmeldung liegt in einem signierten Cookie (HttpOnly, Secure, SameSite=Strict) und verfällt nach 8 Stunden. JavaScript im Browser kommt nicht heran, fremde Seiten können es nicht mitschicken.',
+    text: 'Die Anmeldung liegt in einem signierten Cookie (HttpOnly, Secure, SameSite=Strict) und verfällt nach 8 Stunden. Jede schreibende Aktion prüft sie serverseitig erneut.',
   },
   {
     titel: 'Keine fremden Götter',
-    text: 'Kein Tracking, keine Analytics, keine externen Schriften, keine CDN-Skripte. Die Content-Security-Policy erlaubt ausschliesslich Inhalte dieser Seite; die Seite darf in keinem fremden Rahmen eingebettet werden.',
-  },
-  {
-    titel: 'Nicht auffindbar',
-    text: 'Suchmaschinen werden per robots.txt und Header ausgesperrt, Referrer werden nicht weitergegeben.',
+    text: 'Kein Tracking, keine Analytics, keine externen Schriften, keine CDN-Skripte. Die Content-Security-Policy erlaubt ausschliesslich Inhalte dieser Seite; einbetten lässt sie sich nirgends.',
   },
   {
     titel: 'Datensparsam von Grund auf',
-    text: 'Gespeichert werden Name, Baustelle, sieben Tageszeichen und eine optionale Notiz. Kein Verlauf, kein Änderungsprotokoll, keine zweite Kopie – ein Reset löscht die Zeilen wirklich (DELETE, kein «gelöscht»-Häkchen).',
+    text: 'Gespeichert werden Name, Werktage und pro Woche die Abweichungen samt Rapport-Häkchen. Anwesenheit selbst wird gar nicht erst gespeichert – sie ist der Normalfall. Kein Verlauf, kein Änderungsprotokoll.',
   },
   {
-    titel: `Verfall nach ${MANNA_TAGE} Tagen`,
-    text: 'Jeder Eintrag trägt seinen Erfassungszeitpunkt. Was älter ist, wird beim nächsten Seitenaufruf und zusätzlich einmal täglich per Cron endgültig gelöscht. Der wöchentliche Reset kommt ohnehin früher.',
+    titel: `Wochendaten verfallen nach ${MANNA_TAGE} Tagen`,
+    text: 'Jede Wochentafel kennt ihren Montag. Was älter ist, wird gelöscht – ohne Papierkorb, ohne Archiv.',
+  },
+  {
+    titel: 'Die Personenliste bleibt – bewusst',
+    text: 'Damit die Liste zentral und dauerhaft nutzbar ist, verfällt sie nicht automatisch. Sie enthält nur Namen und Werktage. Wer eine Person nicht mehr braucht, tilgt sie; «Tafeln zerbrechen» räumt alles auf einmal ab.',
   },
   {
     titel: 'Und trotzdem: heikle Daten',
-    text: 'Namen von Mitarbeitenden samt Krankmeldungen sind Personendaten im Sinne des Schweizer DSG. Zugang nur für die Personen, die ihn wirklich brauchen; Passwort nicht teilen; Auszüge nach Gebrauch löschen.',
+    text: 'Namen von Mitarbeitenden samt Absenzen sind Personendaten im Sinne des Schweizer DSG. Zugang nur für die, die ihn brauchen; Passwort nicht teilen.',
   },
 ];
 
 export default async function Gebote() {
   const angemeldet = await imBund();
+  const zellen = ['anwesend', 'entschuldigt', 'unentschuldigt', 'frei'] as const;
+  const wochen = ['rein', 'segen', 'kalb'] as const;
 
   return (
     <>
-      <Kopf
-        woche={kalenderwoche()}
-        naechsterSabbatIso={naechsterSabbat().toISOString()}
-        spruchIndex={3}
-        angemeldet={angemeldet}
-      />
+      <Kopf spruchIndex={3} aktiv="gebote" angemeldet={angemeldet} />
 
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-8">
         <div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight">📜 {BEREICHE.gebote.titel}</h1>
+          <h1 className="font-serif text-3xl font-bold tracking-tight">📖 {BEREICHE.gebote.titel}</h1>
           <p className="fluester mt-1">
-            {APP_NAME} – {APP_LANG}. Alles, was du zum Bedienen brauchst, auf einer Seite.
+            {APP_NAME} – {APP_LANG}. Alles zum Bedienen auf einer Seite.
           </p>
         </div>
 
         <section className="tafel dark-tafel p-5">
-          <h2 className="ueberschrift mb-1">Der Wochenlauf in drei Handgriffen</h2>
+          <h2 className="ueberschrift mb-1">Der Ablauf in drei Handgriffen</h2>
           <ol className="mt-3 space-y-2.5 text-sm">
             <li className="flex gap-3">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-meer-700 text-xs font-bold text-white">1</span>
-              <span><strong>Montagmorgen:</strong> Namen ins Badge-Feld, Baustelle dazu, «Ins Lager rufen».</span>
+              <span><strong>Einmalig:</strong> unter «Musterung» alle Personen erfassen und die Werktage setzen.</span>
             </li>
             <li className="flex gap-3">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-meer-700 text-xs font-bold text-white">2</span>
-              <span><strong>Wenn der Rapport kommt:</strong> Tage abhaken. Was fehlt, bleibt offen – und taucht in der Rauchsäule auf.</span>
+              <span><strong>Laufend:</strong> Absenzen anklicken – orange für entschuldigt, rot für unentschuldigt.</span>
             </li>
             <li className="flex gap-3">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-meer-700 text-xs font-bold text-white">3</span>
-              <span><strong>Sonntag 20:00:</strong> nichts tun. Die Liste leert sich selbst.</span>
+              <span><strong>Nächste Woche:</strong> «Vorige Etappe» öffnen und jeden eingegangenen Rapport abhaken. Was oben übrig bleibt, ist deine Arbeitsliste.</span>
             </li>
           </ol>
         </section>
 
         <section className="tafel dark-tafel p-5">
-          <h2 className="ueberschrift mb-3">Die fünf Zeichen</h2>
+          <h2 className="ueberschrift mb-3">Die vier Felder</h2>
           <ul className="space-y-2.5">
-            {STATUS_ZYKLUS.map((s) => {
-              const info = STATUS[s];
+            {zellen.map((k) => {
+              const info = ZELLE[k];
               return (
-                <li key={s} className="flex items-start gap-3">
-                  <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-base ${info.klassen}`}>
-                    <span aria-hidden>{info.zeichen}</span>
+                <li key={k} className="flex items-start gap-3">
+                  <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-sm font-semibold ${info.klassen}`}>
+                    <span aria-hidden>{info.zeichen || '·'}</span>
                   </span>
                   <span className="text-sm">
                     <strong>{info.klar}</strong>
                     <span className="text-tafel-500"> · «{info.biblisch}»</span>
                     <br />
                     <span className="fluester">{info.hilfe}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+
+          <h3 className="ueberschrift mb-2 mt-5 text-base">Der Punkt vor dem Namen</h3>
+          <ul className="space-y-1.5">
+            {wochen.map((k) => {
+              const info = WOCHE[k];
+              return (
+                <li key={k} className="flex items-center gap-2.5 text-sm">
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${info.punkt}`} aria-hidden />
+                  <span>
+                    <strong>{info.klar}</strong>
+                    <span className="text-tafel-500"> · «{info.biblisch}»</span>
                   </span>
                 </li>
               );
@@ -164,9 +179,7 @@ export default async function Gebote() {
 
         <section className="tafel dark-tafel border-meer-300/70 p-5 dark:border-meer-900">
           <h2 className="ueberschrift mb-1">🗄️ {BEREICHE.bundeslade.titel}</h2>
-          <p className="fluester mb-3">
-            {BEREICHE.bundeslade.klar} – was diese App tut, damit die Daten sicher bleiben.
-          </p>
+          <p className="fluester mb-3">{BEREICHE.bundeslade.klar}</p>
           <ul className="space-y-3">
             {BUNDESLADE.map((b) => (
               <li key={b.titel} className="text-sm">

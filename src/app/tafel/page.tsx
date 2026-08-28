@@ -1,54 +1,55 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import Kopf from '@/components/Kopf';
-import Berufung from '@/components/Berufung';
 import Steintafel from '@/components/Steintafel';
-import Scherben from '@/components/Scherben';
 import { imBund } from '@/lib/session';
-import { lagerLaden } from '@/lib/wanderung';
-import { STATUS, BEREICHE, APP_NAME } from '@/lib/moses';
-import { datumDesTages, stempel, MANNA_TAGE, TAGE_LANG } from '@/lib/zeit';
+import { etappeLaden } from '@/lib/wanderung';
+import { ZELLE, WOCHE, BEREICHE, APP_NAME } from '@/lib/moses';
+import {
+  etappeLesen, etappeSchluessel, etappeVerschieben, etappeGleich,
+  MANNA_TAGE, TAGE_LANG,
+} from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: BEREICHE.tafel.titel };
 
-export default async function Tafel() {
+export default async function Tafel({
+  searchParams,
+}: {
+  searchParams: Promise<{ kw?: string }>;
+}) {
   if (!(await imBund())) redirect('/dornbusch');
 
-  const u = await lagerLaden();
-  const datumProTag = Array.from({ length: 7 }, (_, i) => datumDesTages(i));
-  const anzahl = u.stand.seelen.length;
+  const { kw } = await searchParams;
+  const gewuenscht = etappeLesen(kw);
+  const u = await etappeLaden(gewuenscht);
+
+  // Zurueck nur bis zur Vorwoche - alles davor faellt unter die Manna-Regel.
+  const zurueck = etappeVerschieben(u.etappe, -1);
+  const vorwaerts = etappeVerschieben(u.etappe, 1);
+  const darfZurueck = etappeGleich(u.etappe, u.laufend);
+  const darfVorwaerts = !u.istLaufend;
 
   return (
     <>
-      <Kopf woche={u.woche} naechsterSabbatIso={u.naechsterSabbatIso} spruchIndex={u.woche + u.heute} />
+      <Kopf spruchIndex={u.etappe.woche} aktiv="tafel" />
 
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-        {/* Hinweise, die nur manchmal auftauchen */}
-        {u.stand.sabbatGehalten && (
-          <p className="tafel dark-tafel animate-aufstieg border-meer-300 bg-meer-50 p-3.5 text-sm dark:border-meer-900 dark:bg-meer-950/60">
-            🌙 <strong>Sabbat gehalten.</strong> Seit Sonntag 20:00 war kein Reset mehr fällig –
-            die Liste wurde soeben automatisch geleert. Frische Woche, frische Tafel.
-          </p>
-        )}
-        {u.stand.verdorben > 0 && (
+      <main className="mx-auto max-w-6xl space-y-5 px-4 py-6">
+        {u.verdorben > 0 && (
           <p className="tafel dark-tafel animate-aufstieg border-kalb-400 bg-kalb-50 p-3.5 text-sm dark:border-kalb-800 dark:bg-kalb-950/60">
-            🍞 <strong>Manna-Regel angewendet.</strong> {u.stand.verdorben} {u.stand.verdorben === 1 ? 'Eintrag war' : 'Einträge waren'} älter
-            als {MANNA_TAGE} Tage und {u.stand.verdorben === 1 ? 'wurde' : 'wurden'} gelöscht. «Es wuchsen Würmer darin.» (Ex 16,20)
+            🍞 <strong>Manna-Regel angewendet.</strong> {u.verdorben}{' '}
+            {u.verdorben === 1 ? 'Wocheneintrag war' : 'Wocheneinträge waren'} älter als {MANNA_TAGE} Tage
+            und {u.verdorben === 1 ? 'wurde' : 'wurden'} gelöscht. «Es wuchsen Würmer darin.» (Ex 16,20)
           </p>
         )}
-        {!u.stand.dauerhaft && (
+        {!u.dauerhaft && (
           <div className="tafel dark-tafel border-flamme-300 bg-flamme-50 p-3.5 text-sm dark:border-flamme-900 dark:bg-flamme-950/60">
             <p>
               ⚠️ <strong>Wüstenspeicher aktiv.</strong> Es ist keine Datenbank verbunden. Alles hier
-              lebt nur im Arbeitsspeicher und ist beim nächsten Neustart weg – gut zum Ausprobieren,
-              nicht für den Ernstfall.
-            </p>
-            <p className="mt-2 text-[13px]">
-              Gesucht wurde in diesen Umgebungsvariablen (und zusätzlich in allen anderen, deren
-              Wert mit <code className="font-mono text-xs">postgres://</code> beginnt):
+              lebt nur im Arbeitsspeicher und ist beim nächsten Neustart weg.
             </p>
             <ul className="mt-1.5 flex flex-wrap gap-1.5">
-              {u.stand.diagnose.map((d) => (
+              {u.diagnose.map((d) => (
                 <li
                   key={d.name}
                   className={`rounded-md px-1.5 py-0.5 font-mono text-[11px] ${
@@ -61,87 +62,171 @@ export default async function Tafel() {
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-[13px]">
-              Alle durchgestrichen? Dann ist im aufgerufenen Deployment keine davon gesetzt – meist
-              fehlt nur der <strong>Redeploy</strong> nach dem Verbinden der Datenbank, oder die
-              Variable ist nicht für diese Umgebung angehakt.
-            </p>
           </div>
         )}
 
-        {/* Kennzahlen */}
-        <section aria-label="Kennzahlen der Woche" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <Kachel gross zahl={anzahl} beschriftung="im Lager" unterzeile="Personen diese Woche" zeichen="👥" />
-          <Kachel zahl={u.zaehler.einsatz} beschriftung={STATUS.einsatz.klar} unterzeile="Tage bis heute" zeichen={STATUS.einsatz.zeichen} />
-          <Kachel zahl={u.zaehler.kalb} beschriftung={STATUS.kalb.klar} unterzeile="Rückfrage nötig" zeichen={STATUS.kalb.zeichen} alarm={u.zaehler.kalb > 0} />
-          <Kachel zahl={u.zaehler.plage} beschriftung={STATUS.plage.klar} unterzeile="gemeldet" zeichen={STATUS.plage.zeichen} />
-          <Kachel zahl={u.zaehler.segen} beschriftung={STATUS.segen.klar} unterzeile="abgesprochen" zeichen={STATUS.segen.zeichen} />
-          <Kachel zahl={u.zaehler.offen} beschriftung={STATUS.offen.klar} unterzeile={`bis ${TAGE_LANG[u.heute]}`} zeichen="·" />
+        {/* Etappenwahl */}
+        <section className="tafel dark-tafel flex flex-wrap items-center justify-between gap-3 p-3">
+          <div className="flex items-center gap-2">
+            <NaviKnopf
+              ziel={darfZurueck ? etappeSchluessel(zurueck) : null}
+              titel={
+                darfZurueck
+                  ? `Zurück zu KW ${zurueck.woche}`
+                  : `Weiter zurück liegen keine Daten – nach ${MANNA_TAGE} Tagen wird gelöscht.`
+              }
+            >
+              ← Vorige Etappe
+            </NaviKnopf>
+
+            <div className="px-1">
+              <p className="font-serif text-lg font-bold leading-none">
+                KW {u.etappe.woche}
+                {!u.istLaufend && (
+                  <span className="ml-2 rounded-md bg-kalb-200 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-kalb-900 dark:bg-kalb-900 dark:text-kalb-200">
+                    Rückblick
+                  </span>
+                )}
+              </p>
+              <p className="fluester mt-0.5">{u.spanne}</p>
+            </div>
+
+            <NaviKnopf
+              ziel={darfVorwaerts ? etappeSchluessel(vorwaerts) : null}
+              titel={darfVorwaerts ? `Weiter zu KW ${vorwaerts.woche}` : 'Das ist die laufende Woche.'}
+            >
+              Nächste Etappe →
+            </NaviKnopf>
+          </div>
+
+          {!u.istLaufend && (
+            <Link href="/tafel" className="btn-meer text-xs">
+              ⟲ Zur laufenden Woche
+            </Link>
+          )}
         </section>
 
-        {/* Montagmorgen: Volk sammeln */}
-        <section className="tafel dark-tafel p-5">
-          <div className="mb-4">
-            <h2 className="ueberschrift">⛺ {BEREICHE.berufung.titel}</h2>
-            <p className="fluester mt-1">
-              {BEREICHE.berufung.klar} – der Montagmorgen-Handgriff. «Und Moses versammelte die
-              ganze Gemeinde.» (Ex 35,1)
-            </p>
-          </div>
-          <Berufung bekannteLager={u.lagerNamen} />
+        {/* Kennzahlen */}
+        <section aria-label="Kennzahlen der Woche" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Kachel
+            zahl={u.kennzahlen.offeneRapporte}
+            beschriftung="Rapport offen"
+            unterzeile={`von ${u.kennzahlen.personen} Personen`}
+            zeichen="📬"
+            hervor={u.kennzahlen.offeneRapporte > 0}
+          />
+          <Kachel zahl={u.kennzahlen.rein} beschriftung={WOCHE.rein.klar} unterzeile={WOCHE.rein.biblisch} zeichen="✓" />
+          <Kachel zahl={u.kennzahlen.segen} beschriftung={WOCHE.segen.klar} unterzeile={`${u.kennzahlen.entschuldigteTage} Tage`} zeichen="!" />
+          <Kachel zahl={u.kennzahlen.kalb} beschriftung={WOCHE.kalb.klar} unterzeile={`${u.kennzahlen.unentschuldigteTage} Tage`} zeichen="✗" alarm={u.kennzahlen.kalb > 0} />
         </section>
 
         {/* Die Woche */}
         <section>
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="ueberschrift">📜 {BEREICHE.tafel.titel}</h2>
-              <p className="fluester mt-1">
-                Ein Klick pro Tag und Person. Heute ist {TAGE_LANG[u.heute]} – die Spalte ist hervorgehoben.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 kein-druck">
-              <a href="/api/auszug" className="btn-still text-xs" title="Als CSV für Excel herunterladen">
-                📥 {BEREICHE.auszug.titel}
-              </a>
-              <Scherben anzahl={anzahl} />
-            </div>
+          <div className="mb-3">
+            <h1 className="ueberschrift">📜 {BEREICHE.tafel.titel} · KW {u.etappe.woche}</h1>
+            <p className="fluester mt-1">
+              Werktage sind grün, bis du etwas anderes anklickst. Ein Klick macht orange
+              (entschuldigt), der nächste rot (unentschuldigt), der dritte wieder grün.
+              {u.heute !== null && <> Heute ist {TAGE_LANG[u.heute]} – die Spalte ist markiert.</>}
+            </p>
           </div>
 
-          <Steintafel seelen={u.stand.seelen} heute={u.heute} datumProTag={datumProTag} />
+          <Steintafel
+            zeilen={u.zeilen}
+            jahr={u.etappe.jahr}
+            woche={u.etappe.woche}
+            heute={u.heute}
+            datumProTag={u.datumProTag}
+          />
         </section>
+
+        <Legende />
 
         <footer className="fluester space-y-1 pb-8 pt-2 text-center">
           <p>
-            {APP_NAME} · Automatischer Reset jeden Sonntag um 20:00 (Schweizer Zeit) ·
-            Nichts wird länger als {MANNA_TAGE} Tage aufbewahrt.
+            {APP_NAME} · Die Personenliste bleibt bestehen ·
+            Wochendaten werden nach {MANNA_TAGE} Tagen gelöscht
           </p>
-          {u.stand.letzteScherbe && <p>Letzter Reset: {stempel(new Date(u.stand.letzteScherbe))}</p>}
-          <p className="italic">«Und das Volk zog aus.» (Ex 12,41)</p>
+          <p className="italic">«Sechs Tage sollst du arbeiten.» (Ex 34,21)</p>
         </footer>
       </main>
     </>
   );
 }
 
+function NaviKnopf({
+  ziel, titel, children,
+}: { ziel: string | null; titel: string; children: React.ReactNode }) {
+  if (!ziel) {
+    return (
+      <span className="btn-still cursor-not-allowed text-xs opacity-40" title={titel} aria-disabled>
+        {children}
+      </span>
+    );
+  }
+  return (
+    <Link href={`/tafel?kw=${ziel}`} className="btn-still text-xs" title={titel}>
+      {children}
+    </Link>
+  );
+}
+
 function Kachel({
-  zahl, beschriftung, unterzeile, zeichen, alarm, gross,
+  zahl, beschriftung, unterzeile, zeichen, alarm, hervor,
 }: {
   zahl: number; beschriftung: string; unterzeile: string; zeichen: string;
-  alarm?: boolean; gross?: boolean;
+  alarm?: boolean; hervor?: boolean;
 }) {
   return (
     <div
       className={`tafel dark-tafel px-3.5 py-3 ${
-        alarm ? 'border-kalb-400 bg-kalb-50 dark:border-kalb-800 dark:bg-kalb-950/50' : ''
-      } ${gross ? 'col-span-2 sm:col-span-1' : ''}`}
+        alarm
+          ? 'border-rot-400 bg-rot-50 dark:border-rot-800 dark:bg-rot-950/50'
+          : hervor
+            ? 'border-meer-400 bg-meer-50 dark:border-meer-800 dark:bg-meer-950/50'
+            : ''
+      }`}
     >
       <div className="flex items-baseline gap-1.5">
-        <span className="text-xl leading-none" aria-hidden>{zeichen}</span>
+        <span className="text-lg leading-none" aria-hidden>{zeichen}</span>
         <span className="font-serif text-2xl font-bold tabular-nums leading-none">{zahl}</span>
       </div>
       <p className="mt-1.5 text-sm font-semibold leading-tight">{beschriftung}</p>
       <p className="fluester leading-tight">{unterzeile}</p>
+    </div>
+  );
+}
+
+function Legende() {
+  const zellen = ['anwesend', 'entschuldigt', 'unentschuldigt', 'frei'] as const;
+  return (
+    <div className="tafel dark-tafel p-4">
+      <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-tafel-500">
+        Legende · was die Farben bedeuten
+      </p>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {zellen.map((k) => {
+          const info = ZELLE[k];
+          return (
+            <li key={k} className="flex items-start gap-2.5">
+              <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border text-sm font-semibold ${info.klassen}`}>
+                <span aria-hidden>{info.zeichen || '·'}</span>
+              </span>
+              <span className="text-sm">
+                <strong className="font-semibold">{info.klar}</strong>
+                <span className="text-tafel-500"> · {info.biblisch}</span>
+                <br />
+                <span className="fluester">{info.hilfe}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="fluester mt-3 border-t border-sand-200 pt-3 dark:border-tafel-800">
+        Der Punkt vor dem Namen fasst die Woche zusammen: grün = durchgehend anwesend,
+        orange = mindestens eine entschuldigte Absenz, rot = mindestens eine unentschuldigte.
+        Ist der Rapport abgehakt, wird die Zeile blass und rutscht ans Ende.
+      </p>
     </div>
   );
 }

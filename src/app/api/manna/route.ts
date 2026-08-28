@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { nachtwache } from '@/lib/wanderung';
-import { stempel } from '@/lib/zeit';
+import { stempel, MANNA_TAGE } from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -9,8 +9,8 @@ export const runtime = 'nodejs';
 /**
  * Die Nachtwache - taeglicher Cron-Job (siehe vercel.json).
  *
- *  - loescht alles, was aelter als 14 Tage ist (Manna-Regel)
- *  - haelt den Sabbat: nach Sonntag 20:00 wird die Liste automatisch geleert
+ * Setzt die Manna-Regel durch: Wochendaten, die aelter als 14 Tage sind,
+ * werden endgueltig geloescht. «Es wuchsen Wuermer darin.» (Ex 16,20)
  *
  * Geschuetzt durch CRON_SECRET. Vercel schickt es als "Authorization: Bearer ...".
  */
@@ -39,15 +39,16 @@ export async function GET(anfrage: NextRequest) {
     }
   }
 
-  const ergebnis = await nachtwache();
+  const { verdorben } = await nachtwache();
 
   return NextResponse.json(
     {
       zeitpunkt: stempel(),
-      ...ergebnis,
-      bericht: ergebnis.sabbatGehalten
-        ? `Sabbat gehalten – ${ergebnis.geloescht} ${ergebnis.geloescht === 1 ? 'Eintrag' : 'Einträge'} gelöscht.`
-        : 'Kein Reset fällig.',
+      verdorben,
+      bericht:
+        verdorben > 0
+          ? `${verdorben} ${verdorben === 1 ? 'Wocheneintrag' : 'Wocheneinträge'} älter als ${MANNA_TAGE} Tage gelöscht.`
+          : 'Nichts verdorben.',
     },
     { headers: { 'cache-control': 'no-store' } },
   );

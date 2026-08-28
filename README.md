@@ -2,42 +2,55 @@
 
 Eine Wochentafel: wer war da, wer nicht.
 
-Namen erfassen, Tage abhaken, fertig. Was am Ende der Woche keine Meldung hat,
-steht automatisch oben in der Rückfrage-Liste. Sonntagabend leert sich die Tafel von selbst.
+Eine zentrale Personenliste, pro Kalenderwoche eine Tabelle. Werktage gelten als
+anwesend, bis jemand etwas anderes anklickt. Eingegangene Rapporte hakst du ab –
+was oben stehen bleibt, ist deine Arbeitsliste.
 
-## Die fünf Zeichen
+## Die zwei Ansichten
+
+**Musterung** – die zentrale Personenliste. Gilt für alle Wochen, jederzeit änderbar.
+Jede Person hat einen Namen und ihre Werktage (Mo–Sa möglich, Mo–Fr voreingestellt);
+ein Klick schaltet einen Tag um. Wird eine Person getilgt, verschwinden alle ihre
+Wochendaten mit ihr.
+
+**Steintafel** – die Kalenderwoche. Zeilen sind Personen, Spalten Montag bis Samstag.
+
+## Die vier Felder
 
 | | Bedeutung | Moses-Variante |
 |---|---|---|
-| `·` | Offen – keine Meldung | Noch in der Wüste |
-| `✓` | Gearbeitet | Im Einsatz |
-| `☾` | Frei / abgemeldet | Mit Segen abwesend |
-| `✚` | Krank gemeldet | Von einer Plage getroffen |
-| `🐂` | **Unentschuldigt gefehlt** | Tanzte ums goldene Kalb |
+| 🟩 `✓` | Anwesend – der Normalfall an einem Werktag | Im Einsatz am Bau |
+| 🟧 `!` | Entschuldigt abwesend | Mit Segen abwesend |
+| 🟥 `✗` | **Unentschuldigt abwesend** | Tanzte ums goldene Kalb |
+| ⬜ `·` | Kein Werktag | Sabbatruhe |
 
-`🐂` und vergangene `·` landen in der **Rauchsäule** – der Rückfrage-Liste ganz oben.
+Ein Klick schaltet weiter: grün → orange → rot → grün. Anwesenheit wird gar nicht
+gespeichert, nur die Abweichungen.
 
-## Bedienung
+Der Punkt vor dem Namen fasst die Woche zusammen: **grün** durchgehend anwesend,
+**orange** mindestens eine entschuldigte Absenz, **rot** mindestens eine unentschuldigte.
 
-- **Badge-Feld:** tippen und Enter. Komma, Semikolon und Zeilenumbruch trennen ebenfalls;
-  ganze Listen dürfen eingefügt werden. `Name @Ort` weist den Ort direkt zu.
-- **Zeigestab:** bestimmt, was ein Klick auf eine Zelle setzt. Standard ist «durchklicken».
-- **`✓✓`** setzt die ganze Woche einer Person, **«alle ✓»** in der Spaltenüberschrift
-  den ganzen Tag für alle noch offenen Felder.
-- **Reset:** «Tafeln zerbrechen» → `SINAI` tippen → alles gelöscht.
-- **Auszug:** CSV mit Semikolon und BOM, öffnet direkt in Excel.
+## Rapport und Rückblick
+
+Links pro Zeile eine Checkbox: Rapport eingegangen. Die Zeile wird blass und rutscht
+ans Ende, die offenen bleiben oben. Mit **Vorige Etappe** springst du in die letzte
+Kalenderwoche – dort machst du die Kontrolle. In der laufenden Woche ist die Spalte
+des heutigen Tages leicht markiert.
 
 ## Datenschutz
 
-- **Nichts überlebt 14 Tage.** Älteres wird bei jedem Seitenaufruf und einmal täglich per Cron
-  endgültig gelöscht – kein Papierkorb, kein Archiv, keine Historie.
-- **Passwortgeschützt.** Losungswort als scrypt-Hash, zeitkonstant verglichen; nach 5 Fehlversuchen
-  15 Minuten Sperre (gezählt über einen gesalzenen IP-Hash, der nach 24 h verschwindet).
+- **Wochendaten verfallen nach 14 Tagen.** Gelöscht wird bei jedem Seitenaufruf und
+  einmal täglich per Cron – kein Papierkorb, kein Archiv, keine Historie. Deshalb
+  reicht der Rückblick genau eine Woche zurück.
+- **Die Personenliste bleibt** – sie ist der zentrale Bestand und enthält nur Namen
+  und Werktage. Einzeln tilgen oder mit «Tafeln zerbrechen» alles auf einmal.
+- **Passwortgeschützt.** Losungswort als scrypt-Hash, zeitkonstant verglichen; nach
+  5 Fehlversuchen 15 Minuten Sperre (gezählt über einen gesalzenen IP-Hash, der nach
+  24 h verschwindet).
 - **Sitzung** als signiertes Cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, 8 Stunden);
   jede schreibende Aktion prüft sie serverseitig erneut.
 - **CSP mit Nonce** pro Request, HSTS, `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`.
 - **Keine fremden Götter:** kein Tracking, keine externen Schriften oder Skripte. `noindex`.
-- **Datensparsam:** Name, Ort, sieben Tageszeichen, optionale Notiz. Sonst nichts.
 
 ## Setup
 
@@ -48,27 +61,29 @@ npm run dev               # http://localhost:3000
 ```
 
 Deployment auf Vercel: Repository importieren, unter **Storage** eine Postgres-Datenbank
-verbinden (`POSTGRES_URL` wird automatisch gesetzt, die Tabellen legt die App selbst an),
-dann die Werte aus `npm run steintafel` als Environment Variables eintragen –
-siehe `.env.example`.
+verbinden (die App findet die Verbindung selbst und legt die Tabellen an), dann die Werte
+aus `npm run steintafel` als Environment Variables eintragen – siehe `.env.example`.
+Neue Variablen greifen erst nach einem Redeploy.
 
-Ohne `POSTGRES_URL` läuft alles im Arbeitsspeicher; die App weist sichtbar darauf hin.
+Ohne Datenbank läuft alles im Arbeitsspeicher; die App weist sichtbar darauf hin und
+zeigt, welche Variablen sie gefunden hat.
 
-`vercel.json` registriert einen täglichen Cron auf `/api/sabbat`: löscht Abgelaufenes und
-holt den Sonntags-Reset nach. Fällt der Cron aus, passiert dasselbe beim nächsten Seitenaufruf.
+`vercel.json` registriert einen täglichen Cron auf `/api/manna`, der die 14-Tage-Regel
+durchsetzt. Fällt er aus, passiert dasselbe beim nächsten Seitenaufruf.
 
 ## Aufbau
 
 ```
 src/
 ├─ proxy.ts        CSP mit Nonce + Cookie-Weiche vor jeder Anfrage
-├─ app/            dornbusch (Anmeldung) · tafel (Hauptseite) · gebote (Anleitung) · api
-├─ components/     Badgefeld · Steintafel · Rauchsaeule · Scherben (Reset) · Sanduhr
+├─ app/            dornbusch (Anmeldung) · tafel (Woche) · volk (Liste) · gebote · api/manna
+├─ components/     Steintafel · Musterung · Badgefeld · Berufung · Scherben (Reset)
 └─ lib/            auth · session · taten (Server Actions) · store (Postgres)
-                   wanderung (Reset-Regeln) · analyse · zeit (Europe/Zurich) · moses (Texte)
+                   wanderung (Laden) · analyse (Auswertung) · zeit (KW, Europe/Zurich)
+                   moses (alle Texte und Anspielungen)
 ```
 
-Jede Moses-Anspielung trägt ihre nüchterne Erklärung direkt daneben
-(«Die Rauchsäule · hier musst du nachfragen»). Wer die Bibel nicht kennt, versteht die App trotzdem.
+Jede Moses-Anspielung trägt ihre nüchterne Erklärung daneben («Die Musterung · Zentrale
+Personenliste»). Wer die Bibel nicht kennt, versteht die App trotzdem.
 
-*«Und das Volk zog aus.» (Ex 12,41)*
+*«Sechs Tage sollst du arbeiten.» (Ex 34,21)*

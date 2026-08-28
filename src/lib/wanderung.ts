@@ -1,100 +1,90 @@
 import 'server-only';
-import { store, datenbankDiagnose, type Lagerstand } from './store';
-import type { Status } from './moses';
-import type { Rueckfrage } from './typen';
-import { rueckfragenBilden, zaehlen, lagerNamen } from './analyse';
-import { heuteIndex, kalenderwoche, letzterSabbat, naechsterSabbat } from './zeit';
+import { store, datenbankDiagnose } from './store';
+import type { Zeile } from './typen';
+import { sortieren, zaehlen } from './analyse';
+import {
+  etappeVon, etappeGleich, etappeVerschieben, heuteSpalte,
+  datumImRaster, spanneDerEtappe, TAGE_IM_RASTER, type Etappe,
+} from './zeit';
 
 /**
- * Die Wanderung - alles, was das Lager beim Laden einer Seite wissen muss.
+ * Die Wanderung - alles, was eine Seite beim Laden wissen muss.
  *
- * Hier passieren die beiden automatischen Regeln:
- *  1. Manna-Regel  - was aelter als 14 Tage ist, wird geloescht.
- *  2. Sabbat-Regel - war seit dem letzten Sonntag 20:00 kein Reset, wird jetzt einer nachgeholt.
+ * Hier laeuft auch die Manna-Regel: Wochendaten aelter als 14 Tage werden
+ * bei jedem Aufruf geloescht (Ex 16,20). Die Personenliste selbst bleibt -
+ * sie ist die zentrale Liste und gehoert dem Benutzer.
  */
 
-const SCHLUESSEL_SABBAT = 'letzter_sabbat';
-const SCHLUESSEL_SCHERBE = 'letzte_scherbe';
-
-export type Uebersicht = {
-  stand: Lagerstand;
-  heute: number;
-  woche: number;
-  naechsterSabbatIso: string;
-  rueckfragen: Rueckfrage[];
-  zaehler: Record<Status, number>;
-  lagerNamen: string[];
+export type Etappenblick = {
+  etappe: Etappe;
+  laufend: Etappe;
+  /** Wie weit darf man zurueck? Weiter zurueck liegen keine Daten mehr. */
+  frueheste: Etappe;
+  zeilen: Zeile[];
+  /** Spalte des heutigen Tages, nur wenn die laufende Woche gezeigt wird. */
+  heute: number | null;
+  datumProTag: string[];
+  spanne: string;
+  istLaufend: boolean;
+  kennzahlen: ReturnType<typeof zaehlen>;
+  verdorben: number;
+  dauerhaft: boolean;
+  diagnose: { name: string; gesetzt: boolean }[];
 };
 
-/** Fuehrt Manna- und Sabbat-Regel aus und liest den aktuellen Stand. */
-export async function lagerLaden(): Promise<Uebersicht> {
+/** Laedt eine Kalenderwoche samt Personenliste. */
+export async function etappeLaden(gewuenscht?: Etappe | null): Promise<Etappenblick> {
   const s = await store();
-
   const verdorben = await s.mannaPruefen();
 
-  // Sabbat-Automatik: unabhaengig vom Cron-Job, damit der Reset auch dann
-  // passiert, wenn der Cron einmal ausfaellt oder gar nicht eingerichtet ist.
-  const grenze = letzterSabbat();
-  const gemerkt = await s.zustandLesen(SCHLUESSEL_SABBAT);
-  let sabbatGehalten = false;
-  if (!gemerkt) {
-    await s.zustandSchreiben(SCHLUESSEL_SABBAT, grenze.toISOString());
-  } else if (Date.parse(gemerkt) < grenze.getTime()) {
-    await s.tafelnZerbrechen();
-    await s.zustandSchreiben(SCHLUESSEL_SABBAT, grenze.toISOString());
-    await s.zustandSchreiben(SCHLUESSEL_SCHERBE, new Date().toISOString());
-    sabbatGehalten = true;
-  }
+  const laufend = etappeVon();
+  const frueheste = etappeVerschieben(laufend, -1);
+  const etappe = gewuenscht ?? laufend;
 
-  const seelen = await s.seelenLesen();
-  const letzteScherbe = await s.zustandLesen(SCHLUESSEL_SCHERBE);
-  const heute = heuteIndex();
+  const volk = await s.volkLesen();
+  const woche = await s.wocheLesen(etappe);
+
+  const zeilen: Zeile[] = volk.map((person) => {
+    const eintrag = woche.get(person.id);
+    return {
+      ...person,
+      marken: eintrag?.marken ?? {},
+      rapport: eintrag?.rapport ?? false,
+    };
+  });
+
+  const istLaufend = etappeGleich(etappe, laufend);
 
   return {
-    stand: {
-      seelen,
-      letzteScherbe,
-      sabbatGehalten,
-      verdorben,
-      dauerhaft: s.dauerhaft,
-      diagnose: s.dauerhaft ? [] : datenbankDiagnose(),
-    },
-    heute,
-    woche: kalenderwoche(),
-    naechsterSabbatIso: naechsterSabbat().toISOString(),
-    rueckfragen: rueckfragenBilden(seelen, heute),
-    zaehler: zaehlen(seelen, heute),
-    lagerNamen: lagerNamen(seelen),
+    etappe,
+    laufend,
+    frueheste,
+    zeilen: sortieren(zeilen),
+    heute: istLaufend ? heuteSpalte() : null,
+    datumProTag: Array.from({ length: TAGE_IM_RASTER }, (_, i) => datumImRaster(etappe, i)),
+    spanne: spanneDerEtappe(etappe),
+    istLaufend,
+    kennzahlen: zaehlen(zeilen),
+    verdorben,
+    dauerhaft: s.dauerhaft,
+    diagnose: s.dauerhaft ? [] : datenbankDiagnose(),
   };
 }
 
-/**
- * Die Nachtwache - fuer den taeglichen Cron-Job.
- *
- * Loescht verdorbenes Manna (> 14 Tage) und haelt den Sabbat, falls seit
- * Sonntag 20:00 noch kein Reset stattgefunden hat.
- */
-export async function nachtwache(): Promise<{
-  verdorben: number;
-  sabbatGehalten: boolean;
-  geloescht: number;
-}> {
+/** Nur die zentrale Personenliste - fuer die Musterung. */
+export async function volkLaden() {
   const s = await store();
   const verdorben = await s.mannaPruefen();
+  return {
+    personen: await s.volkLesen(),
+    letzteScherbe: await s.zustandLesen('letzte_scherbe'),
+    verdorben,
+    dauerhaft: s.dauerhaft,
+  };
+}
 
-  const grenze = letzterSabbat();
-  const gemerkt = await s.zustandLesen(SCHLUESSEL_SABBAT);
-  let sabbatGehalten = false;
-  let geloescht = 0;
-
-  if (!gemerkt) {
-    await s.zustandSchreiben(SCHLUESSEL_SABBAT, grenze.toISOString());
-  } else if (Date.parse(gemerkt) < grenze.getTime()) {
-    geloescht = await s.tafelnZerbrechen();
-    await s.zustandSchreiben(SCHLUESSEL_SABBAT, grenze.toISOString());
-    await s.zustandSchreiben(SCHLUESSEL_SCHERBE, new Date().toISOString());
-    sabbatGehalten = true;
-  }
-
-  return { verdorben, sabbatGehalten, geloescht };
+/** Die Nachtwache - taeglicher Cron-Job: verdorbenes Manna wegraeumen. */
+export async function nachtwache(): Promise<{ verdorben: number }> {
+  const s = await store();
+  return { verdorben: await s.mannaPruefen() };
 }

@@ -1,30 +1,30 @@
 /**
  * Zeitrechnung der Wanderung - alles in Schweizer Ortszeit (Europe/Zurich).
  *
- * "Sechs Tage sollst du arbeiten, aber am siebten Tag sollst du ruhen." (Ex 34,21)
- * Genau deshalb faengt die Woche am Montag an und der Sabbat-Reset kommt am Sonntagabend.
+ * Die Woche laeuft von Montag bis Samstag; der Sonntag kommt im Raster nicht vor.
+ * «Sechs Tage sollst du arbeiten.» (Ex 34,21)
  */
 
 export const ZONE = 'Europe/Zurich';
 
-/** Stunde am Sonntagabend, zu der die Tafeln automatisch zerbrechen (Ortszeit). */
-export const SABBAT_STUNDE = 20;
-
-/** Maximale Aufbewahrung. Manna, das laenger liegt, verdirbt. (Ex 16,20) */
+/** Maximale Aufbewahrung der Wochendaten. Manna, das laenger liegt, verdirbt. (Ex 16,20) */
 export const MANNA_TAGE = 14;
 
-export type Wochentag = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Montag ... 6 = Sonntag
+/** Das Raster: Montag (0) bis Samstag (5). */
+export const TAGE_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
+export const TAGE_LANG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'] as const;
+export const TAGE_IM_RASTER = 6;
 
-export const TAGE_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
-export const TAGE_LANG = [
-  'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag',
-] as const;
+/** Voreinstellung fuer neue Personen: Montag bis Freitag. */
+export const WERKTAGE_STANDARD = [0, 1, 2, 3, 4];
+
+const TAG_MS = 86_400_000;
 
 type Teile = {
   jahr: number; monat: number; tag: number;
   stunde: number; minute: number; sekunde: number;
   /** 0 = Montag ... 6 = Sonntag */
-  wochentag: Wochentag;
+  wochentag: number;
 };
 
 const FORMAT = new Intl.DateTimeFormat('en-GB', {
@@ -35,7 +35,7 @@ const FORMAT = new Intl.DateTimeFormat('en-GB', {
   weekday: 'short',
 });
 
-const WOCHENTAG_INDEX: Record<string, Wochentag> = {
+const WOCHENTAG_INDEX: Record<string, number> = {
   Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
 };
 
@@ -47,7 +47,6 @@ export function teile(zeitpunkt: Date = new Date()): Teile {
     jahr: Number(p.year),
     monat: Number(p.month),
     tag: Number(p.day),
-    // 24:00 kommt in manchen Runtimes fuer Mitternacht zurueck.
     stunde: Number(p.hour) % 24,
     minute: Number(p.minute),
     sekunde: Number(p.second),
@@ -55,75 +54,93 @@ export function teile(zeitpunkt: Date = new Date()): Teile {
   };
 }
 
-/** Offset der Zone zu UTC (in ms) zum gegebenen Zeitpunkt. */
-function offsetMs(zeitpunkt: Date): number {
+/**
+ * Spaltenindex des heutigen Tages, oder null am Sonntag - der hat im
+ * Raster keine Spalte.
+ */
+export function heuteSpalte(jetzt: Date = new Date()): number | null {
+  const t = teile(jetzt).wochentag;
+  return t <= 5 ? t : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Kalenderwochen nach ISO 8601 - so zaehlt die Schweiz.               */
+/* ------------------------------------------------------------------ */
+
+export type Etappe = { jahr: number; woche: number };
+
+/** Kalenderwoche eines Zeitpunkts (Ortszeit). Das ISO-Jahr kann vom Kalenderjahr abweichen. */
+export function etappeVon(zeitpunkt: Date = new Date()): Etappe {
   const t = teile(zeitpunkt);
-  const alsUtc = Date.UTC(t.jahr, t.monat - 1, t.tag, t.stunde, t.minute, t.sekunde);
-  return alsUtc - Math.floor(zeitpunkt.getTime() / 1000) * 1000;
-}
-
-/** Wandelt eine Schweizer Wandzeit in den echten UTC-Zeitpunkt um (DST-sicher). */
-export function ortszeitZuUtc(
-  jahr: number, monat: number, tag: number, stunde = 0, minute = 0,
-): Date {
-  const schaetzung = Date.UTC(jahr, monat - 1, tag, stunde, minute);
-  // Zwei Runden reichen auch ueber Zeitumstellungen hinweg.
-  let ergebnis = schaetzung - offsetMs(new Date(schaetzung));
-  ergebnis = schaetzung - offsetMs(new Date(ergebnis));
-  return new Date(ergebnis);
-}
-
-/** Der letzte Sabbat-Moment (Sonntag 20:00 Ortszeit), der bereits vorbei ist. */
-export function letzterSabbat(jetzt: Date = new Date()): Date {
-  const t = teile(jetzt);
-  // Wie viele Tage ist der letzte Sonntag her?
-  let zurueck = (t.wochentag + 1) % 7; // Sonntag(6) -> 0, Montag(0) -> 1, ...
-  if (t.wochentag === 6 && t.stunde < SABBAT_STUNDE) zurueck = 7; // heute Sonntag, aber noch vor 20:00
-  const tagMs = 86_400_000;
-  const ziel = teile(new Date(jetzt.getTime() - zurueck * tagMs));
-  return ortszeitZuUtc(ziel.jahr, ziel.monat, ziel.tag, SABBAT_STUNDE, 0);
-}
-
-/** Der naechste Sabbat-Moment (Sonntag 20:00 Ortszeit) in der Zukunft. */
-export function naechsterSabbat(jetzt: Date = new Date()): Date {
-  const t = teile(jetzt);
-  let vor = (6 - t.wochentag + 7) % 7;
-  if (t.wochentag === 6 && t.stunde >= SABBAT_STUNDE) vor = 7;
-  const tagMs = 86_400_000;
-  const ziel = teile(new Date(jetzt.getTime() + vor * tagMs));
-  return ortszeitZuUtc(ziel.jahr, ziel.monat, ziel.tag, SABBAT_STUNDE, 0);
-}
-
-/** Montag 00:00 Ortszeit der laufenden Woche. */
-export function wochenStart(jetzt: Date = new Date()): Date {
-  const t = teile(jetzt);
-  const tagMs = 86_400_000;
-  const ziel = teile(new Date(jetzt.getTime() - t.wochentag * tagMs));
-  return ortszeitZuUtc(ziel.jahr, ziel.monat, ziel.tag, 0, 0);
-}
-
-/** Heutiger Wochentag-Index (0 = Montag). */
-export function heuteIndex(jetzt: Date = new Date()): Wochentag {
-  return teile(jetzt).wochentag;
-}
-
-/** ISO-8601-Kalenderwoche (die Schweiz zaehlt so). */
-export function kalenderwoche(jetzt: Date = new Date()): number {
-  const t = teile(jetzt);
   const d = new Date(Date.UTC(t.jahr, t.monat - 1, t.tag));
-  const tagNr = (d.getUTCDay() + 6) % 7; // Montag = 0
-  d.setUTCDate(d.getUTCDate() - tagNr + 3); // Donnerstag der Woche
-  const ersterDonnerstag = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const tagNr = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - tagNr + 3); // Donnerstag dieser Woche
+  const jahr = d.getUTCFullYear();
+  const ersterDonnerstag = new Date(Date.UTC(jahr, 0, 4));
   const tagNr2 = (ersterDonnerstag.getUTCDay() + 6) % 7;
   ersterDonnerstag.setUTCDate(ersterDonnerstag.getUTCDate() - tagNr2 + 3);
-  return 1 + Math.round((d.getTime() - ersterDonnerstag.getTime()) / (7 * 86_400_000));
+  return { jahr, woche: 1 + Math.round((d.getTime() - ersterDonnerstag.getTime()) / (7 * TAG_MS)) };
 }
 
-/** Datum eines Wochentags der laufenden Woche, z. B. "25.08." */
-export function datumDesTages(index: number, jetzt: Date = new Date()): string {
-  const start = wochenStart(jetzt);
-  const t = teile(new Date(start.getTime() + index * 86_400_000 + 12 * 3_600_000));
-  return `${String(t.tag).padStart(2, '0')}.${String(t.monat).padStart(2, '0')}.`;
+/** Der Montag einer Kalenderwoche als reines Kalenderdatum. */
+function montagAlsDatum(etappe: Etappe): Date {
+  const ersterDonnerstag = new Date(Date.UTC(etappe.jahr, 0, 4));
+  const tagNr = (ersterDonnerstag.getUTCDay() + 6) % 7;
+  const montagKw1 = new Date(ersterDonnerstag.getTime() - tagNr * TAG_MS);
+  return new Date(montagKw1.getTime() + (etappe.woche - 1) * 7 * TAG_MS);
+}
+
+/** Der Montag einer Kalenderwoche als "JJJJ-MM-TT" - so liegt er in der Datenbank. */
+export function montagIso(etappe: Etappe): string {
+  return montagAlsDatum(etappe).toISOString().slice(0, 10);
+}
+
+/** Verschiebt eine Kalenderwoche um n Wochen (auch ueber Jahresgrenzen hinweg). */
+export function etappeVerschieben(etappe: Etappe, wochen: number): Etappe {
+  const ziel = new Date(montagAlsDatum(etappe).getTime() + wochen * 7 * TAG_MS + 12 * 3_600_000);
+  const d = new Date(ziel);
+  const tagNr = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - tagNr + 3);
+  const jahr = d.getUTCFullYear();
+  const ersterDonnerstag = new Date(Date.UTC(jahr, 0, 4));
+  const tagNr2 = (ersterDonnerstag.getUTCDay() + 6) % 7;
+  ersterDonnerstag.setUTCDate(ersterDonnerstag.getUTCDate() - tagNr2 + 3);
+  return { jahr, woche: 1 + Math.round((d.getTime() - ersterDonnerstag.getTime()) / (7 * TAG_MS)) };
+}
+
+/** "2026-35" - die Kalenderwoche als Adresszeile. */
+export function etappeSchluessel(etappe: Etappe): string {
+  return `${etappe.jahr}-${String(etappe.woche).padStart(2, '0')}`;
+}
+
+/** Liest "2026-35" wieder ein. Gibt null zurueck, wenn nichts Sinnvolles dasteht. */
+export function etappeLesen(text: string | undefined | null): Etappe | null {
+  if (!text) return null;
+  const treffer = /^(\d{4})-(\d{1,2})$/.exec(text.trim());
+  if (!treffer) return null;
+  const jahr = Number(treffer[1]);
+  const woche = Number(treffer[2]);
+  if (jahr < 2000 || jahr > 2100 || woche < 1 || woche > 53) return null;
+  return { jahr, woche };
+}
+
+export function etappeGleich(a: Etappe, b: Etappe): boolean {
+  return a.jahr === b.jahr && a.woche === b.woche;
+}
+
+/** Datum eines Rastertages, z. B. "24.08." */
+export function datumImRaster(etappe: Etappe, spalte: number): string {
+  const d = new Date(montagAlsDatum(etappe).getTime() + spalte * TAG_MS);
+  return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.`;
+}
+
+/** "24.08. – 29.08.2026" - die Spanne der Etappe. */
+export function spanneDerEtappe(etappe: Etappe): string {
+  const montag = montagAlsDatum(etappe);
+  const samstag = new Date(montag.getTime() + 5 * TAG_MS);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(montag.getUTCDate())}.${p(montag.getUTCMonth() + 1)}. – ` +
+    `${p(samstag.getUTCDate())}.${p(samstag.getUTCMonth() + 1)}.${samstag.getUTCFullYear()}`;
 }
 
 /** Menschenlesbarer Zeitstempel in Schweizer Ortszeit. */
@@ -131,9 +148,4 @@ export function stempel(zeitpunkt: Date = new Date()): string {
   const t = teile(zeitpunkt);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(t.tag)}.${p(t.monat)}.${t.jahr}, ${p(t.stunde)}:${p(t.minute)}`;
-}
-
-/** Grenze, ab der Daten als verdorbenes Manna gelten. */
-export function mannaGrenze(jetzt: Date = new Date()): Date {
-  return new Date(jetzt.getTime() - MANNA_TAGE * 86_400_000);
 }

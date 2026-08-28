@@ -3,10 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { store, ipHashen, MAX_NAME, MAX_LAGER, MAX_NOTIZ, MAX_SEELEN } from './store';
+import { store, ipHashen, werktageSaeubern, MAX_NAME, MAX_PERSONEN } from './store';
 import { losungPruefen } from './auth';
 import { bundSchliessen, bundBrechen, bundVerlangen, imBund } from './session';
-import { STATUS_ZYKLUS, type Status } from './moses';
+import type { Marke } from './typen';
+import { TAGE_IM_RASTER, type Etappe } from './zeit';
 
 /**
  * Die Taten - alle schreibenden Aktionen.
@@ -18,7 +19,7 @@ import { STATUS_ZYKLUS, type Status } from './moses';
 const WACHE_FENSTER_MIN = 15;
 const WACHE_VERSUCHE = 5;
 
-export type Antwort = { ok: boolean; meldung: string; feld?: string };
+export type Antwort = { ok: boolean; meldung: string };
 
 /* ----------------------------- Anmeldung ----------------------------- */
 
@@ -71,9 +72,9 @@ export async function abmelden(): Promise<void> {
   redirect('/dornbusch?adieu=1');
 }
 
-/* --------------------------- Volk erfassen --------------------------- */
+/* --------------------------- Die Musterung --------------------------- */
 
-// Steuerzeichen haben in Namen nichts verloren (Schutz vor CSV- und Log-Tricks).
+// Steuerzeichen haben in Namen nichts verloren.
 const STEUERZEICHEN = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f]', 'g');
 
 function saeubern(text: string, max: number): string {
@@ -81,52 +82,37 @@ function saeubern(text: string, max: number): string {
 }
 
 /**
- * Zerlegt die Eingabe des Badge-Feldes.
- * Erlaubt sind Komma, Semikolon, Zeilenumbruch und Tabulator als Trenner.
- * Mit "Name @Baustelle" laesst sich das Lager direkt am Namen mitgeben.
+ * Zerlegt die Eingabe des Badge-Feldes. Komma, Semikolon, Zeilenumbruch und
+ * Tabulator trennen - so lassen sich ganze Listen einfuegen.
  */
-function zerlegen(roh: string, standardLager: string | null): { name: string; lager: string | null }[] {
+function namenZerlegen(roh: string): string[] {
   return roh
     .split(/[,;\n\t]+/)
-    .map((teil) => teil.trim())
-    .filter(Boolean)
-    .map((teil) => {
-      const treffer = teil.match(/^(.*?)\s*@\s*(.+)$/);
-      const name = saeubern(treffer ? treffer[1] : teil, MAX_NAME);
-      const lager = treffer ? saeubern(treffer[2], MAX_LAGER) : standardLager;
-      return { name, lager: lager || null };
-    })
-    .filter((e) => e.name.length > 0);
+    .map((teil) => saeubern(teil, MAX_NAME))
+    .filter(Boolean);
 }
 
 export async function volkRufen(_zuvor: Antwort, daten: FormData): Promise<Antwort> {
   await bundVerlangen();
-  const roh = String(daten.get('namen') ?? '');
-  const standardLager = saeubern(String(daten.get('lager') ?? ''), MAX_LAGER) || null;
-
-  const eintraege = zerlegen(roh, standardLager);
-  if (!eintraege.length) {
-    return {
-      ok: false,
-      meldung: 'Keine Namen erkannt. Namen eintippen und mit Enter zu Badges machen.',
-      feld: 'namen',
-    };
+  const namen = namenZerlegen(String(daten.get('namen') ?? ''));
+  if (!namen.length) {
+    return { ok: false, meldung: 'Keine Namen erkannt. Namen eintippen und mit Enter zu Badges machen.' };
   }
 
   const s = await store();
-  const bestand = await s.seelenLesen();
-  const bekannt = new Set(bestand.map((x) => `${x.name.toLowerCase()}|${(x.lager ?? '').toLowerCase()}`));
+  const bestand = await s.volkLesen();
+  const bekannt = new Set(bestand.map((p) => p.name.toLowerCase()));
 
-  const neue: { name: string; lager: string | null }[] = [];
+  const neue: string[] = [];
   const doppelte: string[] = [];
-  for (const e of eintraege) {
-    const schluessel = `${e.name.toLowerCase()}|${(e.lager ?? '').toLowerCase()}`;
-    if (bekannt.has(schluessel)) { doppelte.push(e.name); continue; }
-    bekannt.add(schluessel);
-    neue.push(e);
+  for (const name of namen) {
+    if (bekannt.has(name.toLowerCase())) { doppelte.push(name); continue; }
+    bekannt.add(name.toLowerCase());
+    neue.push(name);
   }
 
-  const aufgenommen = await s.seelenRufen(neue);
+  const aufgenommen = await s.volkRufen(neue);
+  revalidatePath('/volk');
   revalidatePath('/tafel');
 
   const teile: string[] = [];
@@ -135,90 +121,103 @@ export async function volkRufen(_zuvor: Antwort, daten: FormData): Promise<Antwo
   }
   if (doppelte.length) {
     teile.push(
-      `${doppelte.length} ${doppelte.length === 1 ? 'stand' : 'standen'} schon im Lager (${doppelte.slice(0, 3).join(', ')}${doppelte.length > 3 ? ' …' : ''}).`,
+      `${doppelte.length} ${doppelte.length === 1 ? 'stand' : 'standen'} schon auf der Liste ` +
+      `(${doppelte.slice(0, 3).join(', ')}${doppelte.length > 3 ? ' …' : ''}).`,
     );
   }
-  if (aufgenommen < neue.length) teile.push(`Lager voll – maximal ${MAX_SEELEN} Personen.`);
+  if (aufgenommen < neue.length) teile.push(`Liste voll – maximal ${MAX_PERSONEN} Personen.`);
 
   return {
     ok: aufgenommen > 0,
-    meldung: teile.join(' ') || 'Nichts zu tun – alle standen bereits im Lager.',
+    meldung: teile.join(' ') || 'Nichts zu tun – alle standen bereits auf der Liste.',
   };
 }
 
-/* ------------------------- Tage markieren ---------------------------- */
-
-function statusPruefen(wert: unknown): Status {
-  return STATUS_ZYKLUS.includes(wert as Status) ? (wert as Status) : 'offen';
-}
-
-export async function markeSetzen(id: string, tag: number, status: string): Promise<void> {
+/** Loescht eine Person samt allen ihren Wochendaten. (Ex 32,32) */
+export async function personTilgen(id: string): Promise<void> {
   await bundVerlangen();
-  if (!Number.isInteger(tag) || tag < 0 || tag > 6) return;
   const s = await store();
-  await s.markeSetzen(id, tag, statusPruefen(status));
+  await s.personTilgen(id);
+  revalidatePath('/volk');
   revalidatePath('/tafel');
 }
 
-export async function zeileFuellen(id: string, status: string | null): Promise<void> {
+/** Schaltet einen Werktag einer Person um. */
+export async function werktagUmschalten(id: string, spalte: number): Promise<void> {
   await bundVerlangen();
+  if (!Number.isInteger(spalte) || spalte < 0 || spalte >= TAGE_IM_RASTER) return;
   const s = await store();
-  await s.zeileSetzen(id, status === null ? null : statusPruefen(status));
+  const person = (await s.volkLesen()).find((p) => p.id === id);
+  if (!person) return;
+  const naechste = person.werktage.includes(spalte)
+    ? person.werktage.filter((t) => t !== spalte)
+    : [...person.werktage, spalte];
+  await s.werktageSetzen(id, werktageSaeubern(naechste));
+  revalidatePath('/volk');
   revalidatePath('/tafel');
 }
 
-/** Ganze Tagesspalte setzen - z. B. "Montag: alle offenen auf gearbeitet". */
-export async function spalteFuellen(tag: number, status: string, nurOffen: boolean): Promise<void> {
+/* --------------------------- Die Wochentafel ------------------------- */
+
+function etappePruefen(jahr: unknown, woche: unknown): Etappe | null {
+  const j = Number(jahr), w = Number(woche);
+  if (!Number.isInteger(j) || j < 2000 || j > 2100) return null;
+  if (!Number.isInteger(w) || w < 1 || w > 53) return null;
+  return { jahr: j, woche: w };
+}
+
+function markePruefen(wert: unknown): Marke | null {
+  return wert === 'entschuldigt' || wert === 'unentschuldigt' ? wert : null;
+}
+
+export async function markeSetzen(
+  id: string, jahr: number, woche: number, spalte: number, marke: string | null,
+): Promise<void> {
   await bundVerlangen();
-  if (!Number.isInteger(tag) || tag < 0 || tag > 6) return;
+  const etappe = etappePruefen(jahr, woche);
+  if (!etappe) return;
+  if (!Number.isInteger(spalte) || spalte < 0 || spalte >= TAGE_IM_RASTER) return;
   const s = await store();
-  await s.spalteSetzen(tag, statusPruefen(status), Boolean(nurOffen));
+  await s.markeSetzen(id, etappe, spalte, markePruefen(marke));
   revalidatePath('/tafel');
 }
 
-export async function notizSetzen(id: string, notiz: string): Promise<void> {
+export async function rapportSetzen(
+  id: string, jahr: number, woche: number, gesetzt: boolean,
+): Promise<void> {
   await bundVerlangen();
+  const etappe = etappePruefen(jahr, woche);
+  if (!etappe) return;
   const s = await store();
-  await s.notizSetzen(id, saeubern(notiz, MAX_NOTIZ));
-  revalidatePath('/tafel');
-}
-
-export async function seeleEntlassen(id: string): Promise<void> {
-  await bundVerlangen();
-  const s = await store();
-  await s.seeleEntlassen(id);
+  await s.rapportSetzen(id, etappe, Boolean(gesetzt));
   revalidatePath('/tafel');
 }
 
 /* --------------------------- Tafeln zerbrechen ----------------------- */
 
 /**
- * Der Reset. Wird nur ausgefuehrt, wenn das Bestaetigungswort exakt stimmt -
- * damit niemand aus Versehen die ganze Woche loescht.
+ * Loescht die gesamte Liste samt allen Wochendaten. Nur mit dem
+ * Bestaetigungswort - damit es nie aus Versehen passiert. (Ex 32,19)
  */
 export async function tafelnZerbrechen(_zuvor: Antwort, daten: FormData): Promise<Antwort> {
   await bundVerlangen();
   const wort = String(daten.get('bestaetigung') ?? '').trim().toUpperCase();
   if (wort !== 'SINAI') {
-    return {
-      ok: false,
-      meldung: 'Bestätigung fehlt. Tippe SINAI, um die Tafeln wirklich zu zerbrechen.',
-    };
+    return { ok: false, meldung: 'Bestätigung fehlt. Tippe SINAI, um wirklich alles zu löschen.' };
   }
   const s = await store();
-  const anzahl = await s.tafelnZerbrechen();
+  const anzahl = await s.allesTilgen();
   await s.zustandSchreiben('letzte_scherbe', new Date().toISOString());
+  revalidatePath('/volk');
   revalidatePath('/tafel');
   return {
     ok: true,
     meldung:
       anzahl > 0
-        ? `Die Tafeln liegen in Scherben – ${anzahl} ${anzahl === 1 ? 'Eintrag' : 'Einträge'} endgültig gelöscht.`
-        : 'Nichts zu zerbrechen, die Tafel war bereits leer.',
+        ? `Die Tafeln liegen in Scherben – ${anzahl} ${anzahl === 1 ? 'Person' : 'Personen'} samt allen Wochendaten gelöscht.`
+        : 'Nichts zu zerbrechen, die Liste war bereits leer.',
   };
 }
-
-/* ------------------------------ Status ------------------------------- */
 
 export async function bundPruefen(): Promise<boolean> {
   return imBund();

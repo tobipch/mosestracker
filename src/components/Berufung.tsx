@@ -6,8 +6,9 @@ import Badgefeld from './Badgefeld';
 import { volkRufen, type Antwort } from '@/lib/taten';
 
 /**
- * "Berufung ins Lager" - Montagmorgen-Erfassung.
- * Namen ins Badge-Feld, optional eine Baustelle dazu, ein Klick, fertig.
+ * "Berufung ins Lager" - neue Personen auf die zentrale Liste setzen.
+ * Namen ins Badge-Feld, ein Klick, fertig. Werktage sind dann Montag bis
+ * Freitag und lassen sich pro Person umschalten.
  */
 
 const START: Antwort = { ok: false, meldung: '' };
@@ -21,9 +22,8 @@ function Sendeknopf({ anzahl }: { anzahl: number }) {
   );
 }
 
-export default function Berufung({ bekannteLager }: { bekannteLager: string[] }) {
+export default function Berufung() {
   const [badges, setBadges] = useState<string[]>([]);
-  const [lager, setLager] = useState('');
   const [zustand, absenden] = useActionState(volkRufen, START);
   const zuletzt = useRef<Antwort>(START);
 
@@ -39,35 +39,14 @@ export default function Berufung({ bekannteLager }: { bekannteLager: string[] })
       <input type="hidden" name="namen" value={badges.join('\n')} />
 
       <Badgefeld
-        beschriftung="Wen ruft Moses diese Woche ins Lager?"
+        beschriftung="Wen ruft Moses ins Lager?"
         badges={badges}
         aendern={setBadges}
         platzhalter="Name eintippen, Enter drücken …"
-        hinweis="Trennzeichen: Enter, Komma, Semikolon. Ganze Listen dürfen eingefügt werden. Mit «Name @Baustelle» gleich zuweisen."
+        hinweis="Trennzeichen: Enter, Komma, Semikolon. Ganze Listen dürfen eingefügt werden."
       />
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <div>
-          <label htmlFor="lager" className="mb-1.5 block text-sm font-semibold">
-            Baustelle für alle oben <span className="font-normal text-tafel-500">(optional)</span>
-          </label>
-          <input
-            id="lager"
-            name="lager"
-            list="bekannte-lager"
-            value={lager}
-            onChange={(e) => setLager(e.target.value)}
-            maxLength={40}
-            autoComplete="off"
-            placeholder="z. B. Zürich Hardbrücke"
-            className="feld"
-          />
-          <datalist id="bekannte-lager">
-            {bekannteLager.map((l) => <option key={l} value={l} />)}
-          </datalist>
-        </div>
-        <Sendeknopf anzahl={badges.length} />
-      </div>
+      <Sendeknopf anzahl={badges.length} />
 
       {zustand.meldung && (
         <p

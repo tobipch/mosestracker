@@ -1,71 +1,73 @@
 import 'server-only';
 import { randomUUID, createHash } from 'node:crypto';
-import type { Status } from './moses';
-import type { Marken, Seele } from './typen';
-import { MANNA_TAGE } from './zeit';
+import type { Marke, Person } from './typen';
+import { MANNA_TAGE, TAGE_IM_RASTER, WERKTAGE_STANDARD, montagIso, type Etappe } from './zeit';
 
 /**
  * Das Lager - die Datenhaltung.
  *
  * Zwei Traeger: PostgreSQL (Vercel/Neon) fuer den echten Betrieb, ein fluechtiger
- * Speicher fuer `npm run dev` ohne Datenbank. Beide halten sich an dieselbe Regel:
- * Nichts ueberlebt laenger als 14 Tage (Manna-Regel, Ex 16,20).
+ * Speicher fuer `npm run dev` ohne Datenbank. Beide halten sich an dieselben Regeln:
+ *
+ *  - Die Personenliste ist zentral und bleibt bestehen, bis jemand sie aendert.
+ *  - Wochendaten verfallen nach 14 Tagen (Manna-Regel, Ex 16,20).
+ *  - Wird eine Person geloescht, verschwinden alle ihre Wochendaten mit ihr.
  */
 
-export type { Marken, Seele } from './typen';
+export type { Person } from './typen';
 
-export type Lagerstand = {
-  seelen: Seele[];
-  /** Zeitpunkt des letzten Resets (ISO) oder null. */
-  letzteScherbe: string | null;
-  /** Wurde beim Laden automatisch ein Sabbat-Reset ausgefuehrt? */
-  sabbatGehalten: boolean;
-  /** Wie viele verdorbene Manna-Zeilen wurden gerade entfernt? */
-  verdorben: number;
-  /** Laeuft die App auf einer echten Datenbank? */
-  dauerhaft: boolean;
-  /** Welche Datenbank-Variablen sind belegt? Nur Namen, keine Werte. */
-  diagnose: { name: string; gesetzt: boolean }[];
+/** Eintraege einer Person fuer genau eine Kalenderwoche. */
+export type Wocheneintrag = {
+  marken: Partial<Record<number, Marke>>;
+  rapport: boolean;
 };
 
 export interface Store {
   readonly dauerhaft: boolean;
   vorbereiten(): Promise<void>;
-  /** Loescht alles, was aelter als 14 Tage ist. Gibt die Anzahl zurueck. */
+  /** Loescht Wochendaten aelter als 14 Tage. Gibt die Anzahl zurueck. */
   mannaPruefen(): Promise<number>;
   zustandLesen(schluessel: string): Promise<string | null>;
   zustandSchreiben(schluessel: string, wert: string): Promise<void>;
-  seelenLesen(): Promise<Seele[]>;
-  seelenRufen(eintraege: { name: string; lager: string | null }[]): Promise<number>;
-  seeleEntlassen(id: string): Promise<void>;
-  markeSetzen(id: string, tag: number, status: Status): Promise<void>;
-  zeileSetzen(id: string, status: Status | null): Promise<void>;
-  spalteSetzen(tag: number, status: Status, nurOffen: boolean): Promise<void>;
-  notizSetzen(id: string, notiz: string): Promise<void>;
-  tafelnZerbrechen(): Promise<number>;
+
+  volkLesen(): Promise<Person[]>;
+  volkRufen(namen: string[]): Promise<number>;
+  /** Loescht die Person samt allen Wochendaten. */
+  personTilgen(id: string): Promise<void>;
+  werktageSetzen(id: string, werktage: number[]): Promise<void>;
+
+  wocheLesen(etappe: Etappe): Promise<Map<string, Wocheneintrag>>;
+  markeSetzen(id: string, etappe: Etappe, spalte: number, marke: Marke | null): Promise<void>;
+  rapportSetzen(id: string, etappe: Etappe, gesetzt: boolean): Promise<void>;
+
+  allesTilgen(): Promise<number>;
+
   wacheZaehlen(ipHash: string, fensterMinuten: number): Promise<number>;
   wacheMelden(ipHash: string): Promise<void>;
   wacheLoeschen(ipHash: string): Promise<void>;
 }
 
-export const MAX_SEELEN = 200;
+export const MAX_PERSONEN = 200;
 export const MAX_NAME = 60;
-export const MAX_LAGER = 40;
-export const MAX_NOTIZ = 200;
 
 export function ipHashen(ip: string): string {
   const salz = process.env.MOSES_IP_SALZ ?? process.env.MOSES_SESSION_SECRET ?? 'sinai';
   return createHash('sha256').update(`${salz}:${ip}`).digest('hex').slice(0, 32);
 }
 
+/** Bringt eine Werktagsliste in eine saubere, erlaubte Form. */
+export function werktageSaeubern(roh: unknown): number[] {
+  if (!Array.isArray(roh)) return [...WERKTAGE_STANDARD];
+  const erlaubt = roh
+    .map((x) => Number(x))
+    .filter((x) => Number.isInteger(x) && x >= 0 && x < TAGE_IM_RASTER);
+  return [...new Set(erlaubt)].sort((a, b) => a - b);
+}
+
 /* ------------------------------------------------------------------ */
 /* PostgreSQL                                                          */
 /* ------------------------------------------------------------------ */
 
-/**
- * Namen, unter denen Vercel, Neon und Co. die Verbindungszeichenkette ablegen.
- * Die Reihenfolge entscheidet: gepoolte Verbindungen zuerst.
- */
 const URL_KANDIDATEN = [
   'POSTGRES_URL',
   'DATABASE_URL',
@@ -81,11 +83,9 @@ function istPostgresUrl(wert: string | undefined): wert is string {
 }
 
 /**
- * Sucht die Verbindungszeichenkette. Zuerst unter den bekannten Namen, und
- * falls dort nichts Brauchbares steht, unter allen Umgebungsvariablen, deren
- * Wert wie eine Postgres-URL aussieht - Anbieter erfinden dafuer staendig
- * neue Namen, und eine leere oder falsch belegte Variable soll nicht
- * gewinnen, nur weil sie zufaellig richtig heisst.
+ * Sucht die Verbindungszeichenkette: zuerst unter den bekannten Namen, dann
+ * unter allen Umgebungsvariablen, deren Wert wie eine Postgres-URL aussieht.
+ * Eine gesetzte, aber leere Variable soll nicht gewinnen.
  */
 export function verbindungsQuelle(): { name: string; url: string } | null {
   for (const name of URL_KANDIDATEN) {
@@ -107,10 +107,9 @@ export function datenbankDiagnose(): { name: string; gesetzt: boolean }[] {
 }
 
 /**
- * Parameter, die postgres.js unveraendert als Startup-Parameter an den Server
- * weiterreicht. Alles andere wird entfernt: Neon haengt "channel_binding" an,
- * Prisma-URLs "pgbouncer" - PostgreSQL lehnt beide als unbekannte Einstellung
- * ab und die Verbindung scheitert.
+ * Parameter, die postgres.js unveraendert als Startup-Parameter weiterreicht.
+ * Alles andere wird entfernt: Neon haengt "channel_binding" an, Prisma-URLs
+ * "pgbouncer" - PostgreSQL lehnt beide ab und die Verbindung scheitert.
  */
 const ERLAUBTE_PARAMETER = new Set([
   'sslmode', 'sslrootcert', 'application_name', 'options',
@@ -159,16 +158,44 @@ class PgStore implements Store {
     if (!vorbereitung) {
       vorbereitung = (async () => {
         const db = await sql();
+
+        // Umstellung vom alten Modell (eine Wegwerf-Woche pro Person) auf die
+        // zentrale Liste mit Wochentafeln. Die alten Zeilen waren ohnehin
+        // Wegwerfdaten, deshalb genuegt ein sauberer Schnitt.
+        await db`
+          do $$
+          begin
+            if exists (
+              select 1 from information_schema.columns
+              where table_schema = current_schema()
+                and table_name = 'moses_volk'
+                and column_name = 'lager'
+            ) then
+              drop table moses_volk cascade;
+            end if;
+          end $$`;
+
         await db`
           create table if not exists moses_volk (
             id          text primary key,
             name        text not null,
-            lager       text,
-            notiz       text,
-            marken      jsonb not null default '{}'::jsonb,
+            werktage    jsonb not null default '[0,1,2,3,4]'::jsonb,
             erfasst_am  timestamptz not null default now()
           )`;
-        await db`create index if not exists moses_volk_alter on moses_volk (erfasst_am)`;
+
+        await db`
+          create table if not exists moses_wochentafel (
+            volk_id   text not null references moses_volk(id) on delete cascade,
+            jahr      smallint not null,
+            woche     smallint not null,
+            montag    date not null,
+            marken    jsonb not null default '{}'::jsonb,
+            rapport   boolean not null default false,
+            geaendert timestamptz not null default now(),
+            primary key (volk_id, jahr, woche)
+          )`;
+        await db`create index if not exists moses_wochentafel_alter on moses_wochentafel (montag)`;
+
         await db`
           create table if not exists moses_bundeslade (
             schluessel  text primary key,
@@ -193,9 +220,9 @@ class PgStore implements Store {
   async mannaPruefen(): Promise<number> {
     const db = await sql();
     const weg = await db`
-      delete from moses_volk
-      where erfasst_am < now() - make_interval(days => ${MANNA_TAGE}::int)
-      returning id`;
+      delete from moses_wochentafel
+      where montag < current_date - make_interval(days => ${MANNA_TAGE}::int)
+      returning volk_id`;
     await db`delete from moses_wache where gesehen < now() - interval '24 hours'`;
     return weg.length;
   }
@@ -214,94 +241,86 @@ class PgStore implements Store {
       on conflict (schluessel) do update set wert = excluded.wert, geaendert = now()`;
   }
 
-  async seelenLesen(): Promise<Seele[]> {
+  async volkLesen(): Promise<Person[]> {
     const db = await sql();
-    const r = await db`
-      select id, name, lager, notiz, marken, erfasst_am
-      from moses_volk
-      -- Deterministische Reihenfolge: erst Baustelle, dann Erfassungszeit,
-      -- dann Name. Ohne den Namen als letztes Kriterium koennten Personen aus
-      -- demselben Sammel-Insert bei jedem Laden die Plaetze tauschen.
-      order by coalesce(lager, 'zzzz') asc, erfasst_am asc, name asc`;
-    return r.map((z) => ({
-      id: z.id as string,
-      name: z.name as string,
-      lager: (z.lager as string | null) ?? null,
-      notiz: (z.notiz as string | null) ?? null,
-      marken: (z.marken ?? {}) as Marken,
-      erfasstAm: new Date(z.erfasst_am as string | Date).toISOString(),
-    }));
+    const r = await db`select id, name, werktage, erfasst_am from moses_volk`;
+    return r
+      .map((z) => ({
+        id: z.id as string,
+        name: z.name as string,
+        werktage: werktageSaeubern(z.werktage),
+        erfasstAm: new Date(z.erfasst_am as string | Date).toISOString(),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
   }
 
-  async seelenRufen(eintraege: { name: string; lager: string | null }[]): Promise<number> {
-    if (!eintraege.length) return 0;
+  async volkRufen(namen: string[]): Promise<number> {
+    if (!namen.length) return 0;
     const db = await sql();
     const [{ anzahl }] = await db`select count(*)::int as anzahl from moses_volk`;
-    const platz = Math.max(0, MAX_SEELEN - Number(anzahl));
-    const zeilen = eintraege.slice(0, platz).map((e) => ({
-      id: randomUUID(),
-      name: e.name,
-      lager: e.lager,
-    }));
+    const platz = Math.max(0, MAX_PERSONEN - Number(anzahl));
+    const zeilen = namen.slice(0, platz).map((name) => ({ id: randomUUID(), name }));
     if (!zeilen.length) return 0;
-    // Ein einziger Insert statt N Rundreisen - spuerbar auf Serverless.
-    await db`insert into moses_volk ${db(zeilen, 'id', 'name', 'lager')}`;
+    await db`insert into moses_volk ${db(zeilen, 'id', 'name')}`;
     return zeilen.length;
   }
 
-  async seeleEntlassen(id: string) {
+  async personTilgen(id: string) {
     const db = await sql();
+    // Die Wochendaten haengen per ON DELETE CASCADE daran und gehen mit.
     await db`delete from moses_volk where id = ${id}`;
   }
 
-  async markeSetzen(id: string, tag: number, status: Status) {
+  async werktageSetzen(id: string, werktage: number[]) {
     const db = await sql();
-    if (status === 'offen') {
-      await db`update moses_volk set marken = marken - ${String(tag)}::text where id = ${id}`;
-    } else {
-      await db`
-        update moses_volk
-        set marken = marken || jsonb_build_object(${String(tag)}::text, ${status}::text)
-        where id = ${id}`;
-    }
+    await db`update moses_volk set werktage = ${db.json(werktage)} where id = ${id}`;
   }
 
-  async zeileSetzen(id: string, status: Status | null) {
+  async wocheLesen(etappe: Etappe): Promise<Map<string, Wocheneintrag>> {
     const db = await sql();
-    if (status === null || status === 'offen') {
-      await db`update moses_volk set marken = '{}'::jsonb where id = ${id}`;
+    const r = await db`
+      select volk_id, marken, rapport
+      from moses_wochentafel
+      where jahr = ${etappe.jahr} and woche = ${etappe.woche}`;
+    const map = new Map<string, Wocheneintrag>();
+    for (const z of r) {
+      map.set(z.volk_id as string, {
+        marken: (z.marken ?? {}) as Partial<Record<number, Marke>>,
+        rapport: Boolean(z.rapport),
+      });
+    }
+    return map;
+  }
+
+  async markeSetzen(id: string, etappe: Etappe, spalte: number, marke: Marke | null) {
+    const db = await sql();
+    const schluessel = String(spalte);
+    if (marke === null) {
+      await db`
+        update moses_wochentafel
+        set marken = marken - ${schluessel}::text, geaendert = now()
+        where volk_id = ${id} and jahr = ${etappe.jahr} and woche = ${etappe.woche}`;
       return;
     }
-    const marken: Record<string, Status> = {};
-    for (let t = 0; t < 7; t++) marken[String(t)] = status;
-    await db`update moses_volk set marken = ${db.json(marken)} where id = ${id}`;
+    await db`
+      insert into moses_wochentafel (volk_id, jahr, woche, montag, marken)
+      values (${id}, ${etappe.jahr}, ${etappe.woche}, ${montagIso(etappe)},
+              jsonb_build_object(${schluessel}::text, ${marke}::text))
+      on conflict (volk_id, jahr, woche) do update
+        set marken = moses_wochentafel.marken || jsonb_build_object(${schluessel}::text, ${marke}::text),
+            geaendert = now()`;
   }
 
-  async spalteSetzen(tag: number, status: Status, nurOffen: boolean) {
+  async rapportSetzen(id: string, etappe: Etappe, gesetzt: boolean) {
     const db = await sql();
-    const schluessel = String(tag);
-    if (status === 'offen') {
-      await db`update moses_volk set marken = marken - ${schluessel}::text`;
-      return;
-    }
-    if (nurOffen) {
-      await db`
-        update moses_volk
-        set marken = marken || jsonb_build_object(${schluessel}::text, ${status}::text)
-        where not (marken ? ${schluessel}::text)`;
-    } else {
-      await db`
-        update moses_volk
-        set marken = marken || jsonb_build_object(${schluessel}::text, ${status}::text)`;
-    }
+    await db`
+      insert into moses_wochentafel (volk_id, jahr, woche, montag, rapport)
+      values (${id}, ${etappe.jahr}, ${etappe.woche}, ${montagIso(etappe)}, ${gesetzt})
+      on conflict (volk_id, jahr, woche) do update
+        set rapport = excluded.rapport, geaendert = now()`;
   }
 
-  async notizSetzen(id: string, notiz: string) {
-    const db = await sql();
-    await db`update moses_volk set notiz = ${notiz || null} where id = ${id}`;
-  }
-
-  async tafelnZerbrechen(): Promise<number> {
+  async allesTilgen(): Promise<number> {
     const db = await sql();
     const weg = await db`delete from moses_volk returning id`;
     return weg.length;
@@ -331,8 +350,12 @@ class PgStore implements Store {
 /* Fluechtiger Speicher (nur lokale Entwicklung ohne Datenbank)        */
 /* ------------------------------------------------------------------ */
 
+type WochenSchluessel = string;
+
 type Fluechtig = {
-  seelen: Seele[];
+  volk: Person[];
+  wochen: Map<WochenSchluessel, Map<string, Wocheneintrag>>;
+  montage: Map<WochenSchluessel, string>;
   zustand: Map<string, string>;
   wache: { ipHash: string; zeit: number }[];
 };
@@ -340,9 +363,15 @@ type Fluechtig = {
 const globalerSpeicher = globalThis as unknown as { __moses?: Fluechtig };
 function speicher(): Fluechtig {
   if (!globalerSpeicher.__moses) {
-    globalerSpeicher.__moses = { seelen: [], zustand: new Map(), wache: [] };
+    globalerSpeicher.__moses = {
+      volk: [], wochen: new Map(), montage: new Map(), zustand: new Map(), wache: [],
+    };
   }
   return globalerSpeicher.__moses;
+}
+
+function schluesselVon(etappe: Etappe): string {
+  return `${etappe.jahr}-${etappe.woche}`;
 }
 
 class SandStore implements Store {
@@ -352,76 +381,91 @@ class SandStore implements Store {
 
   async mannaPruefen(): Promise<number> {
     const s = speicher();
-    const grenze = Date.now() - MANNA_TAGE * 86_400_000;
-    const vorher = s.seelen.length;
-    s.seelen = s.seelen.filter((x) => Date.parse(x.erfasstAm) >= grenze);
+    const grenze = new Date(Date.now() - MANNA_TAGE * 86_400_000).toISOString().slice(0, 10);
+    let weg = 0;
+    for (const [k, montag] of s.montage) {
+      if (montag < grenze) {
+        weg += s.wochen.get(k)?.size ?? 0;
+        s.wochen.delete(k);
+        s.montage.delete(k);
+      }
+    }
     s.wache = s.wache.filter((w) => w.zeit > Date.now() - 86_400_000);
-    return vorher - s.seelen.length;
+    return weg;
   }
 
   async zustandLesen(k: string) { return speicher().zustand.get(k) ?? null; }
   async zustandSchreiben(k: string, v: string) { speicher().zustand.set(k, v); }
 
-  async seelenLesen(): Promise<Seele[]> {
-    return speicher().seelen
-      .slice()
-      .sort((a, b) =>
-        (a.lager ?? 'zzzz').localeCompare(b.lager ?? 'zzzz', 'de-CH') ||
-        a.erfasstAm.localeCompare(b.erfasstAm) ||
-        a.name.localeCompare(b.name, 'de-CH'),
-      )
-      .map((s) => ({ ...s, marken: { ...s.marken } }));
+  async volkLesen(): Promise<Person[]> {
+    return speicher().volk
+      .map((p) => ({ ...p, werktage: [...p.werktage] }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
   }
 
-  async seelenRufen(eintraege: { name: string; lager: string | null }[]): Promise<number> {
+  async volkRufen(namen: string[]): Promise<number> {
     const s = speicher();
-    const platz = Math.max(0, MAX_SEELEN - s.seelen.length);
-    const zu = eintraege.slice(0, platz);
-    for (const e of zu) {
-      s.seelen.push({
-        id: randomUUID(), name: e.name, lager: e.lager,
-        notiz: null, marken: {}, erfasstAm: new Date().toISOString(),
+    const platz = Math.max(0, MAX_PERSONEN - s.volk.length);
+    const zu = namen.slice(0, platz);
+    for (const name of zu) {
+      s.volk.push({
+        id: randomUUID(),
+        name,
+        werktage: [...WERKTAGE_STANDARD],
+        erfasstAm: new Date().toISOString(),
       });
     }
     return zu.length;
   }
 
-  async seeleEntlassen(id: string) {
+  async personTilgen(id: string) {
     const s = speicher();
-    s.seelen = s.seelen.filter((x) => x.id !== id);
+    s.volk = s.volk.filter((p) => p.id !== id);
+    for (const woche of s.wochen.values()) woche.delete(id);
   }
 
-  async markeSetzen(id: string, tag: number, status: Status) {
-    const s = speicher().seelen.find((x) => x.id === id);
-    if (!s) return;
-    if (status === 'offen') delete s.marken[tag];
-    else s.marken[tag] = status;
+  async werktageSetzen(id: string, werktage: number[]) {
+    const p = speicher().volk.find((x) => x.id === id);
+    if (p) p.werktage = werktage;
   }
 
-  async zeileSetzen(id: string, status: Status | null) {
-    const s = speicher().seelen.find((x) => x.id === id);
-    if (!s) return;
-    s.marken = {};
-    if (status && status !== 'offen') for (let t = 0; t < 7; t++) s.marken[t] = status;
-  }
-
-  async spalteSetzen(tag: number, status: Status, nurOffen: boolean) {
-    for (const s of speicher().seelen) {
-      if (status === 'offen') { delete s.marken[tag]; continue; }
-      if (nurOffen && s.marken[tag]) continue;
-      s.marken[tag] = status;
+  async wocheLesen(etappe: Etappe): Promise<Map<string, Wocheneintrag>> {
+    const vorhanden = speicher().wochen.get(schluesselVon(etappe));
+    const kopie = new Map<string, Wocheneintrag>();
+    if (vorhanden) {
+      for (const [k, v] of vorhanden) kopie.set(k, { marken: { ...v.marken }, rapport: v.rapport });
     }
+    return kopie;
   }
 
-  async notizSetzen(id: string, notiz: string) {
-    const s = speicher().seelen.find((x) => x.id === id);
-    if (s) s.notiz = notiz || null;
-  }
-
-  async tafelnZerbrechen(): Promise<number> {
+  private eintrag(etappe: Etappe, id: string): Wocheneintrag {
     const s = speicher();
-    const n = s.seelen.length;
-    s.seelen = [];
+    const k = schluesselVon(etappe);
+    if (!s.wochen.has(k)) {
+      s.wochen.set(k, new Map());
+      s.montage.set(k, montagIso(etappe));
+    }
+    const woche = s.wochen.get(k)!;
+    if (!woche.has(id)) woche.set(id, { marken: {}, rapport: false });
+    return woche.get(id)!;
+  }
+
+  async markeSetzen(id: string, etappe: Etappe, spalte: number, marke: Marke | null) {
+    const e = this.eintrag(etappe, id);
+    if (marke === null) delete e.marken[spalte];
+    else e.marken[spalte] = marke;
+  }
+
+  async rapportSetzen(id: string, etappe: Etappe, gesetzt: boolean) {
+    this.eintrag(etappe, id).rapport = gesetzt;
+  }
+
+  async allesTilgen(): Promise<number> {
+    const s = speicher();
+    const n = s.volk.length;
+    s.volk = [];
+    s.wochen.clear();
+    s.montage.clear();
     return n;
   }
 
@@ -452,10 +496,8 @@ export async function store(): Promise<Store> {
     if (quelle) {
       console.log(`[MOSES] Datenbank verbunden ueber ${quelle.name}.`);
     } else if (process.env.NODE_ENV === 'production') {
-      // In Produktion ohne Datenbank waeren die Daten nach jedem Kaltstart weg -
-      // das ist zwar datensparsam, aber unbrauchbar. Deshalb laut sein.
       console.warn(
-        '[MOSES] Keine POSTGRES_URL gesetzt - laeuft im fluechtigen Wuestenspeicher. ' +
+        '[MOSES] Keine Datenbank-URL gefunden - laeuft im fluechtigen Wuestenspeicher. ' +
         'Daten ueberleben keinen Neustart der Serverless-Funktion.',
       );
     }

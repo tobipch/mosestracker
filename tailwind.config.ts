@@ -6,8 +6,10 @@ import type { Config } from 'tailwindcss';
  * tafel  = Steintafel (Karten, Tabellen)
  * flamme = brennender Dornbusch (Aktion, Alarm)
  * meer   = geteiltes Rotes Meer (Primaeraktion, Links)
- * kalb   = goldenes Kalb (unentschuldigt)
- * manna  = Wuestenbrot (Erfolg, anwesend)
+ * kalb   = goldenes Kalb (Akzente)
+ * manna  = Wuestenbrot (gruen: anwesend)
+ * orange = entschuldigte Absenz
+ * rot    = unentschuldigte Absenz
  */
 export default {
   content: ['./src/**/*.{ts,tsx}'],
@@ -38,6 +40,16 @@ export default {
           50: '#fefbe8', 100: '#fff8c2', 200: '#ffee89', 300: '#ffdd45',
           400: '#fdc712', 500: '#eda905', 600: '#cc8102', 700: '#a35a06',
           800: '#86470d', 900: '#723b11', 950: '#431e05',
+        },
+        orange: {
+          50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74',
+          400: '#fb923c', 500: '#f97316', 600: '#ea580c', 700: '#c2410c',
+          800: '#9a3412', 900: '#7c2d12', 950: '#431407',
+        },
+        rot: {
+          50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5',
+          400: '#f87171', 500: '#ef4444', 600: '#dc2626', 700: '#b91c1c',
+          800: '#991b1b', 900: '#7f1d1d', 950: '#450a0a',
         },
         manna: {
           50: '#f1fcf3', 100: '#defae5', 200: '#bff3cd', 300: '#8de8a8',
