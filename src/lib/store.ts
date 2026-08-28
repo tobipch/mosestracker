@@ -24,6 +24,8 @@ export type Lagerstand = {
   verdorben: number;
   /** Laeuft die App auf einer echten Datenbank? */
   dauerhaft: boolean;
+  /** Welche Datenbank-Variablen sind belegt? Nur Namen, keine Werte. */
+  diagnose: { name: string; gesetzt: boolean }[];
 };
 
 export interface Store {
@@ -60,14 +62,71 @@ export function ipHashen(ip: string): string {
 /* PostgreSQL                                                          */
 /* ------------------------------------------------------------------ */
 
-function verbindungsUrl(): string | undefined {
-  return (
-    process.env.POSTGRES_URL ||
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_PRISMA_URL ||
-    process.env.POSTGRES_URL_NON_POOLING ||
-    undefined
-  );
+/**
+ * Namen, unter denen Vercel, Neon und Co. die Verbindungszeichenkette ablegen.
+ * Die Reihenfolge entscheidet: gepoolte Verbindungen zuerst.
+ */
+const URL_KANDIDATEN = [
+  'POSTGRES_URL',
+  'DATABASE_URL',
+  'POSTGRES_PRISMA_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'DATABASE_URL_UNPOOLED',
+  'NEON_DATABASE_URL',
+  'POSTGRES_URL_NO_SSL',
+] as const;
+
+function istPostgresUrl(wert: string | undefined): wert is string {
+  return typeof wert === 'string' && /^postgres(ql)?:\/\/\S/i.test(wert.trim());
+}
+
+/**
+ * Sucht die Verbindungszeichenkette. Zuerst unter den bekannten Namen, und
+ * falls dort nichts Brauchbares steht, unter allen Umgebungsvariablen, deren
+ * Wert wie eine Postgres-URL aussieht - Anbieter erfinden dafuer staendig
+ * neue Namen, und eine leere oder falsch belegte Variable soll nicht
+ * gewinnen, nur weil sie zufaellig richtig heisst.
+ */
+export function verbindungsQuelle(): { name: string; url: string } | null {
+  for (const name of URL_KANDIDATEN) {
+    const wert = process.env[name];
+    if (istPostgresUrl(wert)) return { name, url: wert.trim() };
+  }
+  for (const [name, wert] of Object.entries(process.env)) {
+    if (istPostgresUrl(wert)) return { name, url: wert.trim() };
+  }
+  return null;
+}
+
+/** Nur die Namen und ob sie belegt sind - niemals die Werte. Fuer die Fehlersuche. */
+export function datenbankDiagnose(): { name: string; gesetzt: boolean }[] {
+  return URL_KANDIDATEN.map((name) => ({
+    name,
+    gesetzt: Boolean(process.env[name]?.trim()),
+  }));
+}
+
+/**
+ * Parameter, die postgres.js unveraendert als Startup-Parameter an den Server
+ * weiterreicht. Alles andere wird entfernt: Neon haengt "channel_binding" an,
+ * Prisma-URLs "pgbouncer" - PostgreSQL lehnt beide als unbekannte Einstellung
+ * ab und die Verbindung scheitert.
+ */
+const ERLAUBTE_PARAMETER = new Set([
+  'sslmode', 'sslrootcert', 'application_name', 'options',
+  'connect_timeout', 'target_session_attrs',
+]);
+
+function urlBereinigen(roh: string): string {
+  try {
+    const u = new URL(roh);
+    for (const schluessel of [...u.searchParams.keys()]) {
+      if (!ERLAUBTE_PARAMETER.has(schluessel.toLowerCase())) u.searchParams.delete(schluessel);
+    }
+    return u.toString();
+  } catch {
+    return roh;
+  }
 }
 
 type Sql = import('postgres').Sql;
@@ -77,11 +136,12 @@ let vorbereitung: Promise<void> | null = null;
 
 async function sql(): Promise<Sql> {
   if (!sqlSingleton) {
-    const url = verbindungsUrl();
-    if (!url) throw new Error('Keine Datenbank-URL gesetzt (POSTGRES_URL).');
+    const quelle = verbindungsQuelle();
+    if (!quelle) throw new Error('Keine Datenbank-URL gesetzt (POSTGRES_URL).');
+    const url = urlBereinigen(quelle.url);
     const { default: postgres } = await import('postgres');
     sqlSingleton = postgres(url, {
-      ssl: url.includes('sslmode=disable') ? false : 'require',
+      ssl: /sslmode=disable/.test(url) ? false : 'require',
       max: 1,
       idle_timeout: 20,
       connect_timeout: 10,
@@ -387,8 +447,11 @@ let gewaehlt: Store | null = null;
 /** Liefert den passenden Traeger und legt beim ersten Mal die Tabellen an. */
 export async function store(): Promise<Store> {
   if (!gewaehlt) {
-    gewaehlt = verbindungsUrl() ? new PgStore() : new SandStore();
-    if (!verbindungsUrl() && process.env.NODE_ENV === 'production') {
+    const quelle = verbindungsQuelle();
+    gewaehlt = quelle ? new PgStore() : new SandStore();
+    if (quelle) {
+      console.log(`[MOSES] Datenbank verbunden ueber ${quelle.name}.`);
+    } else if (process.env.NODE_ENV === 'production') {
       // In Produktion ohne Datenbank waeren die Daten nach jedem Kaltstart weg -
       // das ist zwar datensparsam, aber unbrauchbar. Deshalb laut sein.
       console.warn(
@@ -402,5 +465,5 @@ export async function store(): Promise<Store> {
 }
 
 export function datenbankVorhanden(): boolean {
-  return Boolean(verbindungsUrl());
+  return verbindungsQuelle() !== null;
 }

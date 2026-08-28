@@ -37,12 +37,36 @@ export default async function Tafel() {
           </p>
         )}
         {!u.stand.dauerhaft && (
-          <p className="tafel dark-tafel border-flamme-300 bg-flamme-50 p-3.5 text-sm dark:border-flamme-900 dark:bg-flamme-950/60">
-            ⚠️ <strong>Wüstenspeicher aktiv.</strong> Es ist keine Datenbank verbunden
-            (<code className="font-mono text-xs">POSTGRES_URL</code>). Alles hier lebt nur im
-            Arbeitsspeicher und ist beim nächsten Neustart weg – gut zum Ausprobieren,
-            nicht für den Ernstfall.
-          </p>
+          <div className="tafel dark-tafel border-flamme-300 bg-flamme-50 p-3.5 text-sm dark:border-flamme-900 dark:bg-flamme-950/60">
+            <p>
+              ⚠️ <strong>Wüstenspeicher aktiv.</strong> Es ist keine Datenbank verbunden. Alles hier
+              lebt nur im Arbeitsspeicher und ist beim nächsten Neustart weg – gut zum Ausprobieren,
+              nicht für den Ernstfall.
+            </p>
+            <p className="mt-2 text-[13px]">
+              Gesucht wurde in diesen Umgebungsvariablen (und zusätzlich in allen anderen, deren
+              Wert mit <code className="font-mono text-xs">postgres://</code> beginnt):
+            </p>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {u.stand.diagnose.map((d) => (
+                <li
+                  key={d.name}
+                  className={`rounded-md px-1.5 py-0.5 font-mono text-[11px] ${
+                    d.gesetzt
+                      ? 'bg-manna-200 text-manna-900 dark:bg-manna-900 dark:text-manna-200'
+                      : 'bg-sand-200 text-tafel-500 line-through dark:bg-tafel-800 dark:text-tafel-400'
+                  }`}
+                >
+                  {d.name}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[13px]">
+              Alle durchgestrichen? Dann ist im aufgerufenen Deployment keine davon gesetzt – meist
+              fehlt nur der <strong>Redeploy</strong> nach dem Verbinden der Datenbank, oder die
+              Variable ist nicht für diese Umgebung angehakt.
+            </p>
+          </div>
         )}
 
         {/* Kennzahlen */}

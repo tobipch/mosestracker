@@ -1,5 +1,5 @@
 import 'server-only';
-import { store, type Lagerstand } from './store';
+import { store, datenbankDiagnose, type Lagerstand } from './store';
 import type { Status } from './moses';
 import type { Rueckfrage } from './typen';
 import { rueckfragenBilden, zaehlen, lagerNamen } from './analyse';
@@ -57,6 +57,7 @@ export async function lagerLaden(): Promise<Uebersicht> {
       sabbatGehalten,
       verdorben,
       dauerhaft: s.dauerhaft,
+      diagnose: s.dauerhaft ? [] : datenbankDiagnose(),
     },
     heute,
     woche: kalenderwoche(),
