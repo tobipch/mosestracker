@@ -11,8 +11,7 @@ import { markeSetzen, rapportSetzen } from '@/lib/taten';
  * Die Steintafel - eine Kalenderwoche.
  *
  * Zeilen sind Personen, Spalten Montag bis Samstag. Ein Werktag gilt als
- * anwesend, bis jemand etwas anderes anklickt: erst entschuldigt (orange),
- * dann unentschuldigt (rot), dann wieder zurueck. Ist der Rapport eingegangen,
+ * anwesend, bis jemand etwas anderes anklickt. Ist der Rapport eingegangen,
  * wird die Zeile abgehakt, blass und rutscht ans Ende.
  */
 
@@ -56,82 +55,58 @@ export default function Steintafel({ zeilen, jahr, woche, heute, datumProTag }: 
 
   if (!zeilen.length) {
     return (
-      <div className="tafel dark-tafel p-10 text-center">
-        <p className="mb-2 text-4xl" aria-hidden>🏜️</p>
-        <p className="ueberschrift">Die Wüste ist leer</p>
-        <p className="fluester mx-auto mt-2 max-w-md">
-          Auf der zentralen Liste steht noch niemand. Trage unter «Die Musterung» die
-          Personen ein – danach erscheinen sie hier in jeder Kalenderwoche.
-        </p>
-      </div>
+      <p className="tafel px-4 py-12 text-center text-sm text-tafel-500">
+        Noch niemand auf der Liste. Trage die Personen unter{' '}
+        <strong className="font-medium">Musterung</strong> ein.
+      </p>
     );
   }
 
   return (
-    <div className="tafel dark-tafel overflow-hidden">
-      <div className="wanderung-scroll overflow-x-auto">
-        <table className="w-full min-w-[46rem] border-separate border-spacing-0 text-sm">
-          <thead>
-            <tr>
+    <div className="wanderung-scroll overflow-x-auto">
+      <table className="w-full min-w-[32rem] border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th scope="col" className="w-8 border-b border-sand-300 pb-2 dark:border-tafel-800">
+              <span className="sr-only">Rapport eingegangen</span>
+            </th>
+            <th
+              scope="col"
+              className="sticky left-0 z-10 border-b border-sand-300 bg-sand-100 pb-2 pl-1 pr-3 sm:w-full
+                         text-left text-xs font-medium text-tafel-500 dark:border-tafel-800 dark:bg-tafel-950"
+            >
+              Person
+            </th>
+            {TAGE_KURZ.map((tag, i) => (
               <th
+                key={tag}
                 scope="col"
-                title="Rapport eingegangen – die Zeile ist erledigt"
-                className="border-b border-sand-300 bg-sand-100 px-2 py-3 text-center font-semibold
-                           dark:border-tafel-700 dark:bg-tafel-800"
+                className={`w-14 border-b border-sand-300 px-1 pb-2 text-center dark:border-tafel-800 ${
+                  i === heute ? 'text-meer-700 dark:text-meer-300' : 'text-tafel-500'
+                }`}
               >
-                <span className="text-xs">Rapport</span>
+                <span className={`block text-xs ${i === heute ? 'font-bold' : 'font-medium'}`}>{tag}</span>
+                <span className="block text-[10px] font-normal opacity-70">{datumProTag[i]}</span>
+                {i === heute && <span className="sr-only">heute</span>}
               </th>
-              <th
-                scope="col"
-                className="sticky left-0 z-20 border-b border-sand-300 bg-sand-100 px-4 py-3 text-left
-                           font-semibold dark:border-tafel-700 dark:bg-tafel-800"
-              >
-                Person
-              </th>
-              {TAGE_KURZ.map((tag, i) => (
-                <th
-                  key={tag}
-                  scope="col"
-                  className={`border-b border-sand-300 px-1 py-2 text-center font-semibold dark:border-tafel-700 ${
-                    i === heute
-                      ? 'bg-meer-100 dark:bg-meer-950/70'
-                      : 'bg-sand-100 dark:bg-tafel-800'
-                  }`}
-                >
-                  <span className="block leading-tight">{tag}</span>
-                  <span className="block text-[11px] font-normal text-tafel-500">{datumProTag[i]}</span>
-                  {i === heute && (
-                    <span className="mx-auto mt-0.5 block h-1 w-1 rounded-full bg-meer-600 dark:bg-meer-400" aria-hidden />
-                  )}
-                  {i === heute && <span className="sr-only">heute</span>}
-                </th>
-              ))}
-              <th
-                scope="col"
-                className="border-b border-sand-300 bg-sand-100 px-3 py-3 text-left font-semibold
-                           dark:border-tafel-700 dark:bg-tafel-800"
-              >
-                Woche
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {sortiert.map((zeile, index) => (
-              <TafelZeile
-                key={zeile.id}
-                zeile={zeile}
-                jahr={jahr}
-                woche={woche}
-                heute={heute}
-                /** Trennlinie zwischen offenen und erledigten Zeilen. */
-                trennerDarueber={index === ersteErledigte && index > 0}
-                tun={tun}
-              />
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        </thead>
+
+        <tbody>
+          {sortiert.map((zeile, index) => (
+            <TafelZeile
+              key={zeile.id}
+              zeile={zeile}
+              jahr={jahr}
+              woche={woche}
+              heute={heute}
+              trennerDarueber={index === ersteErledigte && index > 0}
+              tun={tun}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -151,11 +126,12 @@ function TafelZeile({
 
   return (
     <tr
-      className={`${zeile.rapport ? 'opacity-45 saturate-[.35]' : info.zeile} ${
-        trennerDarueber ? '[&>*]:border-t-2 [&>*]:border-t-sand-400 dark:[&>*]:border-t-tafel-600' : ''
+      className={`${zeile.rapport ? 'opacity-40 saturate-[.3]' : info.zeile} ${
+        trennerDarueber ? '[&>*]:border-t [&>*]:border-t-sand-400 dark:[&>*]:border-t-tafel-600' : ''
       }`}
+      title={zeile.rapport ? `${zeile.name}: Rapport eingegangen` : `${zeile.name}: ${info.klar}`}
     >
-      <td className="border-b border-sand-200 px-2 py-2 text-center dark:border-tafel-800">
+      <td className="border-b border-sand-200/70 py-1 pr-1 text-center align-middle dark:border-tafel-800/70">
         <input
           type="checkbox"
           checked={zeile.rapport}
@@ -164,27 +140,21 @@ function TafelZeile({
             tun({ typ: 'rapport', id: zeile.id, wert }, () => rapportSetzen(zeile.id, jahr, woche, wert));
           }}
           aria-label={`Rapport für ${zeile.name} eingegangen`}
-          title={
-            zeile.rapport
-              ? 'Rapport ist da – Zeile erledigt. Klicken, um sie wieder zu öffnen.'
-              : 'Rapport eingegangen? Abhaken – die Zeile rutscht ans Ende.'
-          }
+          title="Rapport eingegangen – Zeile erledigt"
           className="h-4 w-4 cursor-pointer accent-meer-700 dark:accent-meer-500"
         />
       </td>
 
       <th
         scope="row"
-        className={`sticky left-0 z-10 border-b border-sand-200 px-4 py-2 text-left align-middle font-medium
-                    dark:border-tafel-800 ${
-                      zeile.rapport
-                        ? 'bg-sand-100 line-through decoration-tafel-400 dark:bg-tafel-900'
-                        : 'bg-sand-50 dark:bg-tafel-900'
-                    }`}
+        className={`sticky left-0 z-10 border-b border-sand-200/70 py-1 pl-1 pr-3 text-left align-middle
+                    font-normal dark:border-tafel-800/70 ${
+          zeile.rapport ? 'bg-sand-100 line-through dark:bg-tafel-950' : 'bg-sand-100 dark:bg-tafel-950'
+        }`}
       >
-        <span className="flex items-center gap-2">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${info.punkt}`} aria-hidden />
-          <span className="max-w-[14rem] truncate">{zeile.name}</span>
+        <span className="block max-w-[8.5rem] truncate sm:max-w-[15rem]">
+          {zeile.name}
+          <span className="sr-only"> – {info.klar}</span>
         </span>
       </th>
 
@@ -192,12 +162,7 @@ function TafelZeile({
         const zell = zellstatus(zeile, zeile.marken, spalte);
         const z = ZELLE[zell];
         return (
-          <td
-            key={spalte}
-            className={`border-b border-sand-200 p-1 text-center dark:border-tafel-800 ${
-              spalte === heute ? 'bg-meer-50/50 dark:bg-meer-950/25' : ''
-            }`}
-          >
+          <td key={spalte} className="border-b border-sand-200/70 p-0.5 text-center dark:border-tafel-800/70">
             <button
               type="button"
               onClick={() => {
@@ -209,20 +174,14 @@ function TafelZeile({
               }}
               title={`${zeile.name} · ${TAGE_LANG[spalte]}: ${z.klar}${z.biblisch ? ` («${z.biblisch}»)` : ''}`}
               aria-label={`${zeile.name}, ${TAGE_LANG[spalte]}: ${z.klar}. Klicken zum Ändern.`}
-              className={`mx-auto grid h-9 w-full min-w-[2.25rem] max-w-[3.5rem] place-items-center rounded-lg
-                          border text-base font-semibold transition ${z.klassen}`}
+              className={`mx-auto grid h-8 w-12 place-items-center rounded border text-sm font-semibold
+                          transition ${z.klassen}`}
             >
-              <span aria-hidden>{z.zeichen || '·'}</span>
+              <span aria-hidden>{z.zeichen || ''}</span>
             </button>
           </td>
         );
       })}
-
-      <td className="border-b border-sand-200 px-3 py-2 dark:border-tafel-800">
-        <span className={`inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${info.pille}`}>
-          {info.klar}
-        </span>
-      </td>
     </tr>
   );
 }

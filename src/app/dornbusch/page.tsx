@@ -21,14 +21,12 @@ export default async function Dornbusch({
     <main className="grid min-h-dvh place-items-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 w-fit animate-flackern text-6xl dornbusch-flamme" aria-hidden>
-            🔥
-          </div>
-          <h1 className="font-serif text-4xl font-bold tracking-tight">{APP_NAME}</h1>
+          <div className="mx-auto mb-2 w-fit text-4xl" aria-hidden>🔥</div>
+          <h1 className="font-serif text-3xl font-bold tracking-tight">{APP_NAME}</h1>
           <p className="fluester mt-1">{APP_LANG}</p>
         </div>
 
-        <div className="tafel dark-tafel p-6 shadow-dornbusch">
+        <div className="tafel p-6">
           <h2 className="ueberschrift">{BEREICHE.dornbusch.titel}</h2>
           <p className="fluester mb-5 mt-1">
             «Zieh deine Schuhe aus, denn der Ort, darauf du stehst, ist heiliges Land.»

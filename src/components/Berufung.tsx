@@ -7,8 +7,7 @@ import { volkRufen, type Antwort } from '@/lib/taten';
 
 /**
  * "Berufung ins Lager" - neue Personen auf die zentrale Liste setzen.
- * Namen ins Badge-Feld, ein Klick, fertig. Werktage sind dann Montag bis
- * Freitag und lassen sich pro Person umschalten.
+ * Namen ins Badge-Feld, ein Klick, fertig.
  */
 
 const START: Antwort = { ok: false, meldung: '' };
@@ -16,13 +15,13 @@ const START: Antwort = { ok: false, meldung: '' };
 function Sendeknopf({ anzahl }: { anzahl: number }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn-meer w-full sm:w-auto" disabled={pending || anzahl === 0}>
-      {pending ? 'Das Meer teilt sich …' : anzahl > 0 ? `${anzahl} ins Lager rufen` : 'Ins Lager rufen'}
+    <button type="submit" className="btn-meer shrink-0" disabled={pending || anzahl === 0}>
+      {pending ? 'einen Moment …' : anzahl > 0 ? `${anzahl} aufnehmen` : 'Aufnehmen'}
     </button>
   );
 }
 
-export default function Berufung() {
+export default function Berufung({ standard }: { standard: string }) {
   const [badges, setBadges] = useState<string[]>([]);
   const [zustand, absenden] = useActionState(volkRufen, START);
   const zuletzt = useRef<Antwort>(START);
@@ -35,28 +34,23 @@ export default function Berufung() {
   }, [zustand]);
 
   return (
-    <form action={absenden} className="space-y-4">
+    <form action={absenden}>
       <input type="hidden" name="namen" value={badges.join('\n')} />
 
-      <Badgefeld
-        beschriftung="Wen ruft Moses ins Lager?"
-        badges={badges}
-        aendern={setBadges}
-        platzhalter="Name eintippen, Enter drücken …"
-        hinweis="Trennzeichen: Enter, Komma, Semikolon. Ganze Listen dürfen eingefügt werden."
-      />
-
-      <Sendeknopf anzahl={badges.length} />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Badgefeld
+            badges={badges}
+            aendern={setBadges}
+            platzhalter="Name eintippen, Enter drücken …"
+            hinweis={`Komma, Semikolon und Zeilenumbruch trennen ebenfalls · Werktage ${standard}, danach änderbar`}
+          />
+        </div>
+        <Sendeknopf anzahl={badges.length} />
+      </div>
 
       {zustand.meldung && (
-        <p
-          role="status"
-          className={`animate-aufstieg rounded-xl border px-3.5 py-2.5 text-sm ${
-            zustand.ok
-              ? 'border-manna-300 bg-manna-50 text-manna-900 dark:border-manna-800 dark:bg-manna-950 dark:text-manna-200'
-              : 'border-kalb-400 bg-kalb-50 text-kalb-900 dark:border-kalb-800 dark:bg-kalb-950 dark:text-kalb-200'
-          }`}
-        >
+        <p role="status" className="mt-2 text-sm text-tafel-600 dark:text-sand-300">
           {zustand.meldung}
         </p>
       )}

@@ -14,7 +14,7 @@ type Props = {
   badges: string[];
   aendern: (badges: string[]) => void;
   platzhalter?: string;
-  beschriftung: string;
+  beschriftung?: string;
   hinweis?: string;
   maxAnzahl?: number;
 };
@@ -58,22 +58,24 @@ export default function Badgefeld({
 
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold">
-        {beschriftung}
-      </label>
+      {beschriftung && (
+        <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
+          {beschriftung}
+        </label>
+      )}
 
       <div
         onMouseDown={(e) => {
           if (e.target === e.currentTarget) { e.preventDefault(); eingabe.current?.focus(); }
         }}
-        className="flex min-h-[3.25rem] w-full flex-wrap items-center gap-1.5 rounded-xl border border-sand-300
-                   bg-white p-2 focus-within:border-meer-500 dark:border-tafel-700 dark:bg-tafel-900"
+        className="flex min-h-[2.6rem] w-full flex-wrap items-center gap-1.5 rounded-lg border border-sand-300
+                   bg-white p-1.5 focus-within:border-meer-500 dark:border-tafel-700 dark:bg-tafel-900"
       >
         {badges.map((b, i) => (
           <span
             key={`${b}-${i}`}
-            className="inline-flex animate-aufstieg items-center gap-1.5 rounded-lg border border-sand-300
-                       bg-sand-100 py-1 pl-2.5 pr-1 text-sm font-medium text-tafel-800 shadow-sm
+            className="inline-flex items-center gap-1 rounded border border-sand-300
+                       bg-sand-100 py-0.5 pl-2 pr-0.5 text-sm text-tafel-800
                        dark:border-tafel-600 dark:bg-tafel-800 dark:text-sand-100"
             title={b}
           >
@@ -98,7 +100,7 @@ export default function Badgefeld({
           spellCheck={false}
           enterKeyHint="done"
           placeholder={badges.length ? 'weiterer Name …' : platzhalter}
-          className="min-w-[10rem] flex-1 border-0 bg-transparent px-1.5 py-1.5 text-base outline-none
+          className="min-w-[9rem] flex-1 border-0 bg-transparent px-1.5 py-1 text-base outline-none
                      placeholder:text-tafel-400 dark:placeholder:text-tafel-500"
           onChange={(e) => {
             const wert = e.target.value;

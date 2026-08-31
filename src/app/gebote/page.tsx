@@ -94,17 +94,17 @@ export default async function Gebote() {
 
   return (
     <>
-      <Kopf spruchIndex={3} aktiv="gebote" angemeldet={angemeldet} />
+      <Kopf aktiv="gebote" angemeldet={angemeldet} />
 
-      <main className="mx-auto max-w-3xl space-y-5 px-4 py-8">
+      <main className="mx-auto max-w-2xl space-y-6 px-4 py-6">
         <div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight">📖 {BEREICHE.gebote.titel}</h1>
+          <h1 className="font-serif text-xl font-bold tracking-tight">{BEREICHE.gebote.titel}</h1>
           <p className="fluester mt-1">
             {APP_NAME} – {APP_LANG}. Alles zum Bedienen auf einer Seite.
           </p>
         </div>
 
-        <section className="tafel dark-tafel p-5">
+        <section className="border-t border-sand-300 pt-5 dark:border-tafel-800">
           <h2 className="ueberschrift mb-1">Der Ablauf in drei Handgriffen</h2>
           <ol className="mt-3 space-y-2.5 text-sm">
             <li className="flex gap-3">
@@ -122,7 +122,7 @@ export default async function Gebote() {
           </ol>
         </section>
 
-        <section className="tafel dark-tafel p-5">
+        <section className="border-t border-sand-300 pt-5 dark:border-tafel-800">
           <h2 className="ueberschrift mb-3">Die vier Felder</h2>
           <ul className="space-y-2.5">
             {zellen.map((k) => {
@@ -160,7 +160,7 @@ export default async function Gebote() {
           </ul>
         </section>
 
-        <section className="tafel dark-tafel p-5">
+        <section className="border-t border-sand-300 pt-5 dark:border-tafel-800">
           <h2 className="ueberschrift mb-3">Die zehn Gebote</h2>
           <ol className="space-y-3">
             {GEBOTE.map((g, i) => (
@@ -177,7 +177,7 @@ export default async function Gebote() {
           </ol>
         </section>
 
-        <section className="tafel dark-tafel border-meer-300/70 p-5 dark:border-meer-900">
+        <section className="border-t border-sand-300 pt-5 dark:border-tafel-800">
           <h2 className="ueberschrift mb-1">🗄️ {BEREICHE.bundeslade.titel}</h2>
           <p className="fluester mb-3">{BEREICHE.bundeslade.klar}</p>
           <ul className="space-y-3">

@@ -70,19 +70,14 @@ export default function Scherben({ anzahl }: { anzahl: number }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="scherben-titel"
-            className="tafel dark-tafel w-full max-w-md animate-aufstieg p-6"
+            className="tafel w-full max-w-md animate-aufstieg p-6"
           >
             <h2 id="scherben-titel" className="font-serif text-xl font-semibold">
               🪨 Tafeln zerbrechen?
             </h2>
             <p className="mt-2 text-sm text-tafel-600 dark:text-sand-300">
-              «Und Moses entbrannte im Zorn und warf die Tafeln aus seiner Hand und zerbrach
-              sie unten am Berge.» <span className="text-tafel-400">(Ex 32,19)</span>
-            </p>
-            <p className="mt-3 rounded-xl border border-flamme-300 bg-flamme-50 px-3.5 py-2.5 text-sm text-flamme-900 dark:border-flamme-900 dark:bg-flamme-950/60 dark:text-flamme-200">
               <strong>{anzahl}</strong> {anzahl === 1 ? 'Person wird' : 'Personen werden'} samt allen
-              Markierungen <strong>endgültig gelöscht</strong>. Kein Papierkorb, kein Zurück –
-              genau wie im Original.
+              Wochendaten endgültig gelöscht. Kein Zurück – wie am Fuss des Sinai. (Ex 32,19)
             </p>
 
             <form action={absenden} className="mt-4 space-y-3">

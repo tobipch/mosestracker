@@ -54,9 +54,10 @@ export const ZELLE: Record<Zellstatus, ZellInfo> = {
     klar: 'Kein Werktag',
     biblisch: 'Sabbatruhe',
     zeichen: '',
+    // Wirklich leer: erst beim Darueberfahren zeigt sich, dass man klicken kann.
     klassen:
-      'border-dashed border-sand-300 bg-transparent text-tafel-300 hover:bg-sand-200/60 ' +
-      'dark:border-tafel-700 dark:text-tafel-600 dark:hover:bg-tafel-800/60',
+      'border-transparent bg-transparent text-transparent hover:border-dashed hover:border-sand-400 ' +
+      'dark:hover:border-tafel-600',
     hilfe: 'Für diese Person kein Arbeitstag. Anklickbar bleibt das Feld trotzdem.',
   },
 };
