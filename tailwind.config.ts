@@ -8,7 +8,7 @@ import type { Config } from 'tailwindcss';
  * meer   = geteiltes Rotes Meer (Primaeraktion, Links)
  * kalb   = goldenes Kalb (Akzente)
  * manna  = Wuestenbrot (gruen: anwesend)
- * orange = entschuldigte Absenz
+ * bernstein = entschuldigte Absenz (gelb, klar getrennt vom Rot)
  * rot    = unentschuldigte Absenz
  */
 export default {
@@ -41,10 +41,10 @@ export default {
           400: '#fdc712', 500: '#eda905', 600: '#cc8102', 700: '#a35a06',
           800: '#86470d', 900: '#723b11', 950: '#431e05',
         },
-        orange: {
-          50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74',
-          400: '#fb923c', 500: '#f97316', 600: '#ea580c', 700: '#c2410c',
-          800: '#9a3412', 900: '#7c2d12', 950: '#431407',
+        bernstein: {
+          50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d',
+          400: '#fbbf24', 500: '#f59e0b', 600: '#d97706', 700: '#b45309',
+          800: '#92400e', 900: '#78350f', 950: '#451a03',
         },
         rot: {
           50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5',

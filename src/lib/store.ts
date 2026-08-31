@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomUUID, createHash } from 'node:crypto';
 import type { Marke, Person } from './typen';
-import { MANNA_TAGE, TAGE_IM_RASTER, WERKTAGE_STANDARD, montagIso, type Etappe } from './zeit';
+import { mannaGrenze, TAGE_IM_RASTER, WERKTAGE_STANDARD, montagIso, type Etappe } from './zeit';
 
 /**
  * Das Lager - die Datenhaltung.
@@ -10,7 +10,7 @@ import { MANNA_TAGE, TAGE_IM_RASTER, WERKTAGE_STANDARD, montagIso, type Etappe }
  * Speicher fuer `npm run dev` ohne Datenbank. Beide halten sich an dieselben Regeln:
  *
  *  - Die Personenliste ist zentral und bleibt bestehen, bis jemand sie aendert.
- *  - Wochendaten verfallen nach 14 Tagen (Manna-Regel, Ex 16,20).
+ *  - Wochendaten verfallen nach fuenf Kalenderwochen (Manna-Regel, Ex 16,20).
  *  - Wird eine Person geloescht, verschwinden alle ihre Wochendaten mit ihr.
  */
 
@@ -219,9 +219,10 @@ class PgStore implements Store {
 
   async mannaPruefen(): Promise<number> {
     const db = await sql();
+    // Alles, was vor dem Montag der aeltesten aufbewahrten Woche liegt.
     const weg = await db`
       delete from moses_wochentafel
-      where montag < current_date - make_interval(days => ${MANNA_TAGE}::int)
+      where montag < ${mannaGrenze()}::date
       returning volk_id`;
     await db`delete from moses_wache where gesehen < now() - interval '24 hours'`;
     return weg.length;
@@ -381,7 +382,7 @@ class SandStore implements Store {
 
   async mannaPruefen(): Promise<number> {
     const s = speicher();
-    const grenze = new Date(Date.now() - MANNA_TAGE * 86_400_000).toISOString().slice(0, 10);
+    const grenze = mannaGrenze();
     let weg = 0;
     for (const [k, montag] of s.montage) {
       if (montag < grenze) {

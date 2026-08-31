@@ -6,8 +6,8 @@ import { imBund } from '@/lib/session';
 import { etappeLaden } from '@/lib/wanderung';
 import { ZELLE, WOCHE, BEREICHE, APP_NAME } from '@/lib/moses';
 import {
-  etappeLesen, etappeSchluessel, etappeVerschieben, etappeGleich,
-  MANNA_TAGE, TAGE_LANG,
+  etappeLesen, etappeSchluessel, etappeVerschieben, etappeGleich, etappeVorher,
+  RUECKBLICK_WOCHEN, TAGE_LANG,
 } from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
@@ -24,11 +24,21 @@ export default async function Tafel({
   const gewuenscht = etappeLesen(kw);
   const u = await etappeLaden(gewuenscht);
 
-  // Zurueck nur bis zur Vorwoche - alles davor faellt unter die Manna-Regel.
+  // Wer eine Woche ausserhalb des Fensters aufruft, landet in der laufenden -
+  // sonst zeigte die Tafel lauter grüne Felder für Daten, die es nicht mehr gibt.
+  if (gewuenscht && (etappeVorher(gewuenscht, u.frueheste) || etappeVorher(u.laufend, gewuenscht))) {
+    redirect('/tafel');
+  }
+
   const zurueck = etappeVerschieben(u.etappe, -1);
   const vorwaerts = etappeVerschieben(u.etappe, 1);
-  const darfZurueck = etappeGleich(u.etappe, u.laufend);
+  const darfZurueck = !etappeVorher(zurueck, u.frueheste);
   const darfVorwaerts = !u.istLaufend;
+
+  // Alle erreichbaren Etappen, älteste zuerst.
+  const auswahl = Array.from({ length: RUECKBLICK_WOCHEN + 1 }, (_, i) =>
+    etappeVerschieben(u.laufend, i - RUECKBLICK_WOCHEN),
+  );
 
   return (
     <>
@@ -36,10 +46,11 @@ export default async function Tafel({
 
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-6">
         {u.verdorben > 0 && (
-          <p className="tafel dark-tafel animate-aufstieg border-kalb-400 bg-kalb-50 p-3.5 text-sm dark:border-kalb-800 dark:bg-kalb-950/60">
+          <p className="tafel dark-tafel animate-aufstieg border-meer-300 bg-meer-50 p-3.5 text-sm dark:border-meer-900 dark:bg-meer-950/60">
             🍞 <strong>Manna-Regel angewendet.</strong> {u.verdorben}{' '}
-            {u.verdorben === 1 ? 'Wocheneintrag war' : 'Wocheneinträge waren'} älter als {MANNA_TAGE} Tage
-            und {u.verdorben === 1 ? 'wurde' : 'wurden'} gelöscht. «Es wuchsen Würmer darin.» (Ex 16,20)
+            {u.verdorben === 1 ? 'Wocheneintrag lag' : 'Wocheneinträge lagen'} weiter zurück als{' '}
+            {RUECKBLICK_WOCHEN} Kalenderwochen und {u.verdorben === 1 ? 'wurde' : 'wurden'} gelöscht.
+            «Es wuchsen Würmer darin.» (Ex 16,20)
           </p>
         )}
         {!u.dauerhaft && (
@@ -66,24 +77,24 @@ export default async function Tafel({
         )}
 
         {/* Etappenwahl */}
-        <section className="tafel dark-tafel flex flex-wrap items-center justify-between gap-3 p-3">
-          <div className="flex items-center gap-2">
+        <section className="tafel dark-tafel space-y-3 p-3">
+          <div className="flex flex-wrap items-center gap-2">
             <NaviKnopf
               ziel={darfZurueck ? etappeSchluessel(zurueck) : null}
               titel={
                 darfZurueck
                   ? `Zurück zu KW ${zurueck.woche}`
-                  : `Weiter zurück liegen keine Daten – nach ${MANNA_TAGE} Tagen wird gelöscht.`
+                  : `Weiter zurück liegen keine Daten – aufbewahrt werden ${RUECKBLICK_WOCHEN} Kalenderwochen.`
               }
             >
-              ← Vorige Etappe
+              ←
             </NaviKnopf>
 
             <div className="px-1">
               <p className="font-serif text-lg font-bold leading-none">
                 KW {u.etappe.woche}
                 {!u.istLaufend && (
-                  <span className="ml-2 rounded-md bg-kalb-200 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-kalb-900 dark:bg-kalb-900 dark:text-kalb-200">
+                  <span className="ml-2 rounded-md bg-meer-200 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-meer-900 dark:bg-meer-900 dark:text-meer-100">
                     Rückblick
                   </span>
                 )}
@@ -95,15 +106,33 @@ export default async function Tafel({
               ziel={darfVorwaerts ? etappeSchluessel(vorwaerts) : null}
               titel={darfVorwaerts ? `Weiter zu KW ${vorwaerts.woche}` : 'Das ist die laufende Woche.'}
             >
-              Nächste Etappe →
+              →
             </NaviKnopf>
-          </div>
 
-          {!u.istLaufend && (
-            <Link href="/tafel" className="btn-meer text-xs">
-              ⟲ Zur laufenden Woche
-            </Link>
-          )}
+            <div className="ml-auto flex flex-wrap items-center gap-1">
+              <span className="fluester mr-1 hidden sm:inline">Etappen</span>
+              {auswahl.map((e) => {
+                const aktiv = etappeGleich(e, u.etappe);
+                const laufend = etappeGleich(e, u.laufend);
+                return (
+                  <Link
+                    key={etappeSchluessel(e)}
+                    href={laufend ? '/tafel' : `/tafel?kw=${etappeSchluessel(e)}`}
+                    aria-current={aktiv ? 'page' : undefined}
+                    title={laufend ? `KW ${e.woche} · laufende Woche` : `KW ${e.woche}`}
+                    className={`rounded-lg border px-2 py-1 text-xs font-semibold transition ${
+                      aktiv
+                        ? 'border-meer-600 bg-meer-700 text-white'
+                        : 'border-sand-300 bg-sand-50 text-tafel-600 hover:bg-sand-200 dark:border-tafel-700 dark:bg-tafel-800 dark:text-sand-300 dark:hover:bg-tafel-700'
+                    }`}
+                  >
+                    {e.woche}
+                    {laufend && <span className="ml-1" aria-hidden>•</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         {/* Kennzahlen */}
@@ -125,7 +154,7 @@ export default async function Tafel({
           <div className="mb-3">
             <h1 className="ueberschrift">📜 {BEREICHE.tafel.titel} · KW {u.etappe.woche}</h1>
             <p className="fluester mt-1">
-              Werktage sind grün, bis du etwas anderes anklickst. Ein Klick macht orange
+              Werktage sind grün, bis du etwas anderes anklickst. Ein Klick macht gelb
               (entschuldigt), der nächste rot (unentschuldigt), der dritte wieder grün.
               {u.heute !== null && <> Heute ist {TAGE_LANG[u.heute]} – die Spalte ist markiert.</>}
             </p>
@@ -144,8 +173,8 @@ export default async function Tafel({
 
         <footer className="fluester space-y-1 pb-8 pt-2 text-center">
           <p>
-            {APP_NAME} · Die Personenliste bleibt bestehen ·
-            Wochendaten werden nach {MANNA_TAGE} Tagen gelöscht
+            {APP_NAME} · Die Personenliste bleibt bestehen · Wochendaten:
+            die laufende Woche und {RUECKBLICK_WOCHEN} zurück
           </p>
           <p className="italic">«Sechs Tage sollst du arbeiten.» (Ex 34,21)</p>
         </footer>
@@ -224,7 +253,7 @@ function Legende() {
       </ul>
       <p className="fluester mt-3 border-t border-sand-200 pt-3 dark:border-tafel-800">
         Der Punkt vor dem Namen fasst die Woche zusammen: grün = durchgehend anwesend,
-        orange = mindestens eine entschuldigte Absenz, rot = mindestens eine unentschuldigte.
+        gelb = mindestens eine entschuldigte Absenz, rot = mindestens eine unentschuldigte.
         Ist der Rapport abgehakt, wird die Zeile blass und rutscht ans Ende.
       </p>
     </div>

@@ -6,7 +6,7 @@ import Scherben from '@/components/Scherben';
 import { imBund } from '@/lib/session';
 import { volkLaden } from '@/lib/wanderung';
 import { BEREICHE } from '@/lib/moses';
-import { stempel, MANNA_TAGE, WERKTAGE_STANDARD, TAGE_KURZ } from '@/lib/zeit';
+import { stempel, RUECKBLICK_WOCHEN, WERKTAGE_STANDARD, TAGE_KURZ } from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: BEREICHE.volk.titel };
@@ -72,8 +72,8 @@ export default async function Volk() {
 
         <footer className="fluester space-y-1 pb-8 pt-2 text-center">
           <p>
-            Die Personenliste bleibt bestehen, bis du sie änderst ·
-            Wochendaten werden nach {MANNA_TAGE} Tagen gelöscht
+            Die Personenliste bleibt bestehen, bis du sie änderst · Wochendaten:
+            die laufende Woche und {RUECKBLICK_WOCHEN} zurück
           </p>
           <p className="italic">«Und Moses zählte sie, wie ihm befohlen war.» (Num 3,16)</p>
         </footer>

@@ -3,22 +3,22 @@ import { store, datenbankDiagnose } from './store';
 import type { Zeile } from './typen';
 import { sortieren, zaehlen } from './analyse';
 import {
-  etappeVon, etappeGleich, etappeVerschieben, heuteSpalte,
+  etappeVon, etappeGleich, aeltesteEtappe, heuteSpalte,
   datumImRaster, spanneDerEtappe, TAGE_IM_RASTER, type Etappe,
 } from './zeit';
 
 /**
  * Die Wanderung - alles, was eine Seite beim Laden wissen muss.
  *
- * Hier laeuft auch die Manna-Regel: Wochendaten aelter als 14 Tage werden
- * bei jedem Aufruf geloescht (Ex 16,20). Die Personenliste selbst bleibt -
- * sie ist die zentrale Liste und gehoert dem Benutzer.
+ * Hier laeuft auch die Manna-Regel: Wochendaten, die aelter sind als die
+ * fuenf zurueckliegenden Kalenderwochen, werden bei jedem Aufruf geloescht
+ * (Ex 16,20). Die Personenliste selbst bleibt - sie gehoert dem Benutzer.
  */
 
 export type Etappenblick = {
   etappe: Etappe;
   laufend: Etappe;
-  /** Wie weit darf man zurueck? Weiter zurueck liegen keine Daten mehr. */
+  /** Aelteste erreichbare Woche - weiter zurueck liegen keine Daten mehr. */
   frueheste: Etappe;
   zeilen: Zeile[];
   /** Spalte des heutigen Tages, nur wenn die laufende Woche gezeigt wird. */
@@ -38,7 +38,7 @@ export async function etappeLaden(gewuenscht?: Etappe | null): Promise<Etappenbl
   const verdorben = await s.mannaPruefen();
 
   const laufend = etappeVon();
-  const frueheste = etappeVerschieben(laufend, -1);
+  const frueheste = aeltesteEtappe();
   const etappe = gewuenscht ?? laufend;
 
   const volk = await s.volkLesen();

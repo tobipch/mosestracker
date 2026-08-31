@@ -7,8 +7,11 @@
 
 export const ZONE = 'Europe/Zurich';
 
-/** Maximale Aufbewahrung der Wochendaten. Manna, das laenger liegt, verdirbt. (Ex 16,20) */
-export const MANNA_TAGE = 14;
+/**
+ * Aufbewahrung der Wochendaten: die laufende Kalenderwoche und die fuenf davor.
+ * Was in die sechste Woche rutscht, verdirbt wie Manna. (Ex 16,20)
+ */
+export const RUECKBLICK_WOCHEN = 5;
 
 /** Das Raster: Montag (0) bis Samstag (5). */
 export const TAGE_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
@@ -141,6 +144,24 @@ export function spanneDerEtappe(etappe: Etappe): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(montag.getUTCDate())}.${p(montag.getUTCMonth() + 1)}. – ` +
     `${p(samstag.getUTCDate())}.${p(samstag.getUTCMonth() + 1)}.${samstag.getUTCFullYear()}`;
+}
+
+/** Die aelteste Kalenderwoche, die noch aufbewahrt wird. */
+export function aeltesteEtappe(jetzt: Date = new Date()): Etappe {
+  return etappeVerschieben(etappeVon(jetzt), -RUECKBLICK_WOCHEN);
+}
+
+/**
+ * Montag der aeltesten aufbewahrten Woche als "JJJJ-MM-TT".
+ * Alles davor faellt unter die Manna-Regel und wird geloescht.
+ */
+export function mannaGrenze(jetzt: Date = new Date()): string {
+  return montagIso(aeltesteEtappe(jetzt));
+}
+
+/** Liegt Etappe a vor Etappe b? Vergleicht ueber den jeweiligen Montag. */
+export function etappeVorher(a: Etappe, b: Etappe): boolean {
+  return montagIso(a) < montagIso(b);
 }
 
 /** Menschenlesbarer Zeitstempel in Schweizer Ortszeit. */

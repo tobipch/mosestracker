@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { nachtwache } from '@/lib/wanderung';
-import { stempel, MANNA_TAGE } from '@/lib/zeit';
+import { stempel, RUECKBLICK_WOCHEN } from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -9,8 +9,9 @@ export const runtime = 'nodejs';
 /**
  * Die Nachtwache - taeglicher Cron-Job (siehe vercel.json).
  *
- * Setzt die Manna-Regel durch: Wochendaten, die aelter als 14 Tage sind,
- * werden endgueltig geloescht. «Es wuchsen Wuermer darin.» (Ex 16,20)
+ * Setzt die Manna-Regel durch: Wochendaten, die weiter zurueckliegen als die
+ * fuenf vergangenen Kalenderwochen, werden endgueltig geloescht.
+ * «Es wuchsen Wuermer darin.» (Ex 16,20)
  *
  * Geschuetzt durch CRON_SECRET. Vercel schickt es als "Authorization: Bearer ...".
  */
@@ -47,7 +48,7 @@ export async function GET(anfrage: NextRequest) {
       verdorben,
       bericht:
         verdorben > 0
-          ? `${verdorben} ${verdorben === 1 ? 'Wocheneintrag' : 'Wocheneinträge'} älter als ${MANNA_TAGE} Tage gelöscht.`
+          ? `${verdorben} ${verdorben === 1 ? 'Wocheneintrag' : 'Wocheneinträge'} älter als ${RUECKBLICK_WOCHEN} Kalenderwochen gelöscht.`
           : 'Nichts verdorben.',
     },
     { headers: { 'cache-control': 'no-store' } },

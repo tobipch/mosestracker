@@ -20,28 +20,28 @@ Wochendaten mit ihr.
 | | Bedeutung | Moses-Variante |
 |---|---|---|
 | 🟩 `✓` | Anwesend – der Normalfall an einem Werktag | Im Einsatz am Bau |
-| 🟧 `!` | Entschuldigt abwesend | Mit Segen abwesend |
+| 🟨 `!` | Entschuldigt abwesend | Mit Segen abwesend |
 | 🟥 `✗` | **Unentschuldigt abwesend** | Tanzte ums goldene Kalb |
 | ⬜ `·` | Kein Werktag | Sabbatruhe |
 
-Ein Klick schaltet weiter: grün → orange → rot → grün. Anwesenheit wird gar nicht
+Ein Klick schaltet weiter: grün → gelb → rot → grün. Anwesenheit wird gar nicht
 gespeichert, nur die Abweichungen.
 
 Der Punkt vor dem Namen fasst die Woche zusammen: **grün** durchgehend anwesend,
-**orange** mindestens eine entschuldigte Absenz, **rot** mindestens eine unentschuldigte.
+**gelb** mindestens eine entschuldigte Absenz, **rot** mindestens eine unentschuldigte.
 
 ## Rapport und Rückblick
 
 Links pro Zeile eine Checkbox: Rapport eingegangen. Die Zeile wird blass und rutscht
-ans Ende, die offenen bleiben oben. Mit **Vorige Etappe** springst du in die letzte
-Kalenderwoche – dort machst du die Kontrolle. In der laufenden Woche ist die Spalte
-des heutigen Tages leicht markiert.
+ans Ende, die offenen bleiben oben. Über den Pfeil oder die Nummern oben erreichst du
+die **fünf zurückliegenden Kalenderwochen** – die Kontrolle machst du meist in der
+letzten. In der laufenden Woche ist die Spalte des heutigen Tages leicht markiert.
 
 ## Datenschutz
 
-- **Wochendaten verfallen nach 14 Tagen.** Gelöscht wird bei jedem Seitenaufruf und
-  einmal täglich per Cron – kein Papierkorb, kein Archiv, keine Historie. Deshalb
-  reicht der Rückblick genau eine Woche zurück.
+- **Wochendaten verfallen nach fünf Kalenderwochen.** Aufbewahrt werden die laufende
+  Woche und die fünf davor; was in die sechste rutscht, wird gelöscht – bei jedem
+  Seitenaufruf und einmal täglich per Cron, ohne Papierkorb, ohne Archiv, ohne Historie.
 - **Die Personenliste bleibt** – sie ist der zentrale Bestand und enthält nur Namen
   und Werktage. Einzeln tilgen oder mit «Tafeln zerbrechen» alles auf einmal.
 - **Passwortgeschützt.** Losungswort als scrypt-Hash, zeitkonstant verglichen; nach
@@ -68,8 +68,8 @@ Neue Variablen greifen erst nach einem Redeploy.
 Ohne Datenbank läuft alles im Arbeitsspeicher; die App weist sichtbar darauf hin und
 zeigt, welche Variablen sie gefunden hat.
 
-`vercel.json` registriert einen täglichen Cron auf `/api/manna`, der die 14-Tage-Regel
-durchsetzt. Fällt er aus, passiert dasselbe beim nächsten Seitenaufruf.
+`vercel.json` registriert einen täglichen Cron auf `/api/manna`, der die
+Fünf-Wochen-Regel durchsetzt. Fällt er aus, passiert dasselbe beim nächsten Seitenaufruf.
 
 ## Aufbau
 

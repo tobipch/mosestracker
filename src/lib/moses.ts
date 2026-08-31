@@ -37,8 +37,8 @@ export const ZELLE: Record<Zellstatus, ZellInfo> = {
     biblisch: 'Mit Segen abwesend',
     zeichen: '!',
     klassen:
-      'border-orange-400 bg-orange-200 text-orange-900 hover:bg-orange-300 ' +
-      'dark:border-orange-700 dark:bg-orange-900/70 dark:text-orange-100 dark:hover:bg-orange-800',
+      'border-bernstein-500 bg-bernstein-200 text-bernstein-900 hover:bg-bernstein-300 ' +
+      'dark:border-bernstein-400 dark:bg-bernstein-500/45 dark:text-bernstein-50 dark:hover:bg-bernstein-500/60',
     hilfe: 'Ferien, Krankmeldung, bewilligter freier Tag – abgesprochen, kein Handlungsbedarf.',
   },
   unentschuldigt: {
@@ -89,9 +89,9 @@ export const WOCHE: Record<Wochenstatus, WochenInfo> = {
   segen: {
     klar: 'Entschuldigte Absenz',
     biblisch: 'Mit Segen abwesend',
-    punkt: 'bg-orange-500',
-    zeile: 'bg-orange-50/70 dark:bg-orange-950/30',
-    pille: 'bg-orange-200 text-orange-900 dark:bg-orange-900 dark:text-orange-100',
+    punkt: 'bg-bernstein-400',
+    zeile: 'bg-bernstein-50/80 dark:bg-bernstein-500/10',
+    pille: 'bg-bernstein-200 text-bernstein-900 dark:bg-bernstein-500/40 dark:text-bernstein-50',
   },
   kalb: {
     klar: 'Unentschuldigte Absenz',
@@ -124,7 +124,7 @@ export const SPRUECHE: string[] = [
   '«Zieh deine Schuhe aus» – aber die Sicherheitsschuhe bleiben an. (Ex 3,5)',
   'Das Meer teilt sich. Die Stundenrapporte leider nicht von selbst.',
   '«Du sollst nicht falsch Zeugnis reden» – auch nicht über geleistete Stunden. (Ex 20,16)',
-  'Manna verdirbt nach einem Tag. Diese Wochendaten nach vierzehn. (Ex 16,20)',
+  'Manna verdirbt nach einem Tag. Diese Wochendaten nach fünf Kalenderwochen. (Ex 16,20)',
   'Wer ums goldene Kalb tanzt, steht am Montag nicht auf der Baustelle.',
   'Zehn Plagen hat Ägypten überstanden. Ein fehlender Mann bringt eine Etappe zum Stillstand.',
   '«Sechs Tage sollst du arbeiten.» Genau deshalb hört diese Tafel am Samstag auf. (Ex 34,21)',

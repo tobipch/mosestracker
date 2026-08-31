@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Kopf from '@/components/Kopf';
 import { imBund } from '@/lib/session';
 import { APP_NAME, APP_LANG, BEREICHE, ZELLE, WOCHE } from '@/lib/moses';
-import { MANNA_TAGE, TAGE_KURZ, WERKTAGE_STANDARD } from '@/lib/zeit';
+import { RUECKBLICK_WOCHEN, TAGE_KURZ, WERKTAGE_STANDARD } from '@/lib/zeit';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: BEREICHE.gebote.titel };
@@ -28,11 +28,11 @@ const GEBOTE: { titel: string; text: string }[] = [
   },
   {
     titel: 'Du sollst mit einem Klick weiterschalten.',
-    text: 'Grün → orange (entschuldigt) → rot (unentschuldigt) → wieder grün. Auch leere Felder lassen sich anklicken, falls jemand an einem freien Tag hätte einspringen sollen.',
+    text: 'Grün → gelb (entschuldigt) → rot (unentschuldigt) → wieder grün. Auch leere Felder lassen sich anklicken, falls jemand an einem freien Tag hätte einspringen sollen.',
   },
   {
     titel: 'Du sollst den Punkt vor dem Namen lesen.',
-    text: 'Er fasst die Woche zusammen: grün = durchgehend anwesend, orange = mindestens eine entschuldigte Absenz, rot = mindestens eine unentschuldigte. Eine rote Zeile ist die, um die es geht.',
+    text: 'Er fasst die Woche zusammen: grün = durchgehend anwesend, gelb = mindestens eine entschuldigte Absenz, rot = mindestens eine unentschuldigte. Eine rote Zeile ist die, um die es geht.',
   },
   {
     titel: 'Du sollst abhaken, was eingegangen ist.',
@@ -40,7 +40,7 @@ const GEBOTE: { titel: string; text: string }[] = [
   },
   {
     titel: 'Du sollst zurückblicken dürfen.',
-    text: 'Mit «Vorige Etappe» springst du in die letzte Kalenderwoche – dort machst du in der Regel die Kontrolle. «Zur laufenden Woche» bringt dich zurück. Weiter zurück geht es nicht, weil dort nichts mehr liegt.',
+    text: `Über den Pfeil oder die Nummern oben springst du in jede der ${RUECKBLICK_WOCHEN} vergangenen Kalenderwochen – die Kontrolle machst du meist in der letzten. Der Punkt markiert die laufende Woche. Weiter zurück geht es nicht, weil dort nichts mehr liegt.`,
   },
   {
     titel: 'Du sollst dich am heutigen Tag orientieren.',
@@ -48,7 +48,7 @@ const GEBOTE: { titel: string; text: string }[] = [
   },
   {
     titel: 'Du sollst kein Manna horten.',
-    text: `Wochendaten verfallen nach ${MANNA_TAGE} Tagen und werden endgültig gelöscht – bei jedem Aufruf und einmal täglich per Cron. Die Personenliste selbst bleibt, sie gehört dir.`,
+    text: `Aufbewahrt werden die laufende Kalenderwoche und die ${RUECKBLICK_WOCHEN} davor. Was in die sechste Woche rutscht, wird endgültig gelöscht – bei jedem Aufruf und einmal täglich per Cron. Die Personenliste selbst bleibt, sie gehört dir.`,
   },
 ];
 
@@ -74,8 +74,8 @@ const BUNDESLADE: { titel: string; text: string }[] = [
     text: 'Gespeichert werden Name, Werktage und pro Woche die Abweichungen samt Rapport-Häkchen. Anwesenheit selbst wird gar nicht erst gespeichert – sie ist der Normalfall. Kein Verlauf, kein Änderungsprotokoll.',
   },
   {
-    titel: `Wochendaten verfallen nach ${MANNA_TAGE} Tagen`,
-    text: 'Jede Wochentafel kennt ihren Montag. Was älter ist, wird gelöscht – ohne Papierkorb, ohne Archiv.',
+    titel: `Wochendaten verfallen nach ${RUECKBLICK_WOCHEN} Kalenderwochen`,
+    text: 'Jede Wochentafel kennt ihren Montag. Liegt er weiter zurück, wird sie gelöscht – ohne Papierkorb, ohne Archiv.',
   },
   {
     titel: 'Die Personenliste bleibt – bewusst',
@@ -113,7 +113,7 @@ export default async function Gebote() {
             </li>
             <li className="flex gap-3">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-meer-700 text-xs font-bold text-white">2</span>
-              <span><strong>Laufend:</strong> Absenzen anklicken – orange für entschuldigt, rot für unentschuldigt.</span>
+              <span><strong>Laufend:</strong> Absenzen anklicken – gelb für entschuldigt, rot für unentschuldigt.</span>
             </li>
             <li className="flex gap-3">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-meer-700 text-xs font-bold text-white">3</span>
